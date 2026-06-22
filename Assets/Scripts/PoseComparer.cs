@@ -2,27 +2,20 @@ using UnityEngine;
 
 public class PoseComparer : MonoBehaviour
 {
-    [Range(50,100)]
-    public int minimumScore = 60;
-
-    [Range(50,100)]
-    public int maximumScore = 100;
-
-    public int ComparePose()
+    public int ComparePose(string expectedPose)
     {
-        return Random.Range(minimumScore, maximumScore + 1);
+        if (UDPReceiver.latestPose == expectedPose)
+        {
+            return 100;
+        }
+
+        return 0;
     }
 
     public string GetResult(int score)
     {
-        if(score >= 90)
+        if (score == 100)
             return "PERFECT!";
-
-        if(score >= 75)
-            return "GOOD!";
-
-        if(score >= 60)
-            return "OK!";
 
         return "MISS!";
     }

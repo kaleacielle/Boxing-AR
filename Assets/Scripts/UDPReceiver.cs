@@ -6,9 +6,11 @@ using System.Text;
 
 public class UDPReceiver : MonoBehaviour
 {
+    public static string latestPose = "";
+
     private UdpClient client;
 
-    private void Start()
+    void Start()
     {
         client = new UdpClient(5052);
 
@@ -23,9 +25,9 @@ public class UDPReceiver : MonoBehaviour
 
         byte[] data = client.EndReceive(ar, ref endPoint);
 
-        string message = Encoding.UTF8.GetString(data);
+        latestPose = Encoding.UTF8.GetString(data);
 
-        Debug.Log("Received: " + message);
+        Debug.Log("Received Pose: " + latestPose);
 
         client.BeginReceive(ReceiveCallback, null);
     }

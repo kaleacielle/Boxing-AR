@@ -9,19 +9,21 @@ public class PoseGameManager : MonoBehaviour
     public TMP_Text scoreText;
     public TMP_Text resultText;
 
-    void Update()
-    {
-        if(Input.GetKeyDown(KeyCode.Space))
-        {
-            CheckPose();
-        }
-    }
-
     public void CheckPose()
     {
-        int score = poseComparer.ComparePose();
+        string targetPose = poseManager.GetCurrentPose().poseName;
+
+        int score = poseComparer.ComparePose(targetPose);
 
         scoreText.text = score + "%";
         resultText.text = poseComparer.GetResult(score);
+    }
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            CheckPose();
+        }
     }
 }
