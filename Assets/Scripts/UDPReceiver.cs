@@ -7,6 +7,8 @@ using System.Text;
 public class UDPReceiver : MonoBehaviour
 {
     public static string latestPose = "";
+    public static Vector2 wristPosition;
+
 
     private UdpClient client;
 
@@ -19,15 +21,23 @@ public class UDPReceiver : MonoBehaviour
         client.BeginReceive(ReceiveCallback, null);
     }
 
-    private void ReceiveCallback(IAsyncResult ar)
+    void ReceiveCallback(IAsyncResult ar)
     {
-        IPEndPoint endPoint = new IPEndPoint(IPAddress.Any, 5052);
+        IPEndPoint ep = new IPEndPoint(IPAddress.Any, 5052);
 
-        byte[] data = client.EndReceive(ar, ref endPoint);
+        byte[] data = client.EndReceive(ar, ref ep);
 
-        latestPose = Encoding.UTF8.GetString(data);
+        string msg = Encoding.UTF8.GetString(data);
 
-        Debug.Log("Received Pose: " + latestPose);
+        string[] values = msg.Split(',');
+
+        if (values.Length == 2)
+        {
+            float x = float.Parse(values[0]);
+            float y = float.Parse(values[1]);
+
+            wristPosition = new Vector2(x, y);
+        }
 
         client.BeginReceive(ReceiveCallback, null);
     }
