@@ -14,16 +14,20 @@ public class PoseDetector : MonoBehaviour
 
     void Update()
     {
-        DetectGuard();
-    }
-
-    void DetectGuard()
-    {
         if (!UDPReceiver.bodyDetected)
         {
             CurrentPose = BoxingPose.None;
             return;
         }
+
+        DetectPose();
+    }
+
+    void DetectPose()
+    {
+        //--------------------------------------------------
+        // GUARD
+        //--------------------------------------------------
 
         bool leftGuard =
             UDPReceiver.leftWrist.y <
@@ -40,10 +44,45 @@ public class PoseDetector : MonoBehaviour
                 CurrentPose = BoxingPose.Guard;
                 Debug.Log("🥊 GUARD");
             }
+
+            return;
         }
-        else
+
+        //--------------------------------------------------
+        // LEAD JAB
+        //--------------------------------------------------
+
+        float leftExtension =
+            Mathf.Abs(
+                UDPReceiver.leftWrist.x -
+                UDPReceiver.leftShoulder.x
+            );
+
+        float rightDistance =
+            Vector2.Distance(
+                UDPReceiver.rightWrist,
+                UDPReceiver.rightShoulder
+            );
+
+        bool leadJab =
+            leftExtension > 0.20f &&
+            rightDistance < 0.15f;
+
+        if (leadJab)
         {
-            CurrentPose = BoxingPose.None;
+            if (CurrentPose != BoxingPose.LeadJab)
+            {
+                CurrentPose = BoxingPose.LeadJab;
+                Debug.Log("🥊 LEAD JAB");
+            }
+
+            return;
         }
+
+        //--------------------------------------------------
+        // NOTHING DETECTED
+        //--------------------------------------------------
+
+        CurrentPose = BoxingPose.None;
     }
 }
