@@ -6,14 +6,15 @@ using System.Text;
 
 public class UDPReceiver : MonoBehaviour
 {
-    // Used later for pose matching
+    // Keep this so old scripts still compile
     public static string latestPose = "";
-
-    // Used now for wrist tracking
-    public static Vector2 wristPosition;
 
     // Body detection
     public static bool bodyDetected = false;
+
+    // Left & Right hands
+    public static Vector2 leftWrist;
+    public static Vector2 rightWrist;
 
     private UdpClient client;
 
@@ -28,33 +29,45 @@ public class UDPReceiver : MonoBehaviour
 
     void ReceiveCallback(IAsyncResult ar)
     {
-        IPEndPoint ep = new IPEndPoint(IPAddress.Any, 5052);
-
-        byte[] data = client.EndReceive(ar, ref ep);
-
-        string msg = Encoding.UTF8.GetString(data);
-
-        // Keep the latest message
-        latestPose = msg;
-
-        // Expected format: x,y
-        string[] values = msg.Split(',');
-
-        if (values.Length == 2)
+        try
         {
-            float x = float.Parse(values[0]);
-            float y = float.Parse(values[1]);
+            IPEndPoint ep = new IPEndPoint(IPAddress.Any, 5052);
 
-            wristPosition = new Vector2(x, y);
+            byte[] data = client.EndReceive(ar, ref ep);
 
-            bodyDetected = true;
+            string msg = Encoding.UTF8.GetString(data);
+
+            // Keep old compatibility
+            latestPose = msg;
+
+            string[] values = msg.Split(',');
+
+            // Left Wrist X,Y + Right Wrist X,Y
+            if (values.Length == 4)
+            {
+                leftWrist = new Vector2(
+                    float.Parse(values[0]),
+                    float.Parse(values[1])
+                );
+
+                rightWrist = new Vector2(
+                    float.Parse(values[2]),
+                    float.Parse(values[3])
+                );
+
+                bodyDetected = true;
+            }
+            else
+            {
+                bodyDetected = false;
+            }
+
+            client.BeginReceive(ReceiveCallback, null);
         }
-        else
+        catch (Exception e)
         {
-            bodyDetected = false;
+            Debug.LogError(e.Message);
         }
-
-        client.BeginReceive(ReceiveCallback, null);
     }
 
     void OnApplicationQuit()
