@@ -11,20 +11,28 @@ public enum LessonState
 
 public class GameManager : MonoBehaviour
 {
+    [Header("References")]
     public CoachManager coach;
     public PoseDetector poseDetector;
+    public UIManager uiManager;
 
-    public LessonState currentLesson =
-        LessonState.WaitingForPlayer;
+    [Header("Lesson")]
+    public LessonState currentLesson = LessonState.WaitingForPlayer;
+
+    private const int totalLessons = 3;
 
     void Start()
     {
         currentLesson = LessonState.WaitingForPlayer;
+
+        uiManager.SetLesson("WAITING...");
+        uiManager.SetFeedback("Stand in front of the camera");
+        uiManager.SetProgress(0, totalLessons);
     }
 
     void Update()
     {
-        switch(currentLesson)
+        switch (currentLesson)
         {
             case LessonState.WaitingForPlayer:
                 WaitingForPlayer();
@@ -48,9 +56,11 @@ public class GameManager : MonoBehaviour
     {
         if (UDPReceiver.bodyDetected)
         {
-            Debug.Log("Player Detected");
-
             coach.PlayIdle();
+
+            uiManager.SetLesson("GUARD");
+            uiManager.SetFeedback("Raise both hands to your face.");
+            uiManager.SetProgress(1, totalLessons);
 
             currentLesson = LessonState.Guard;
         }
@@ -60,9 +70,11 @@ public class GameManager : MonoBehaviour
     {
         if (poseDetector.CurrentPose == BoxingPose.Guard)
         {
-            Debug.Log("Great Guard!");
-
             coach.PlayLeadJab();
+
+            uiManager.SetLesson("LEAD JAB");
+            uiManager.SetFeedback("Great Guard! Extend your left arm.");
+            uiManager.SetProgress(2, totalLessons);
 
             currentLesson = LessonState.LeadJab;
         }
@@ -70,11 +82,22 @@ public class GameManager : MonoBehaviour
 
     void LeadJabLesson()
     {
+        if (poseDetector.CurrentPose == BoxingPose.LeadJab)
+        {
+            coach.PlayComboPunch();
 
+            uiManager.SetLesson("COMBINATION");
+            uiManager.SetFeedback("Excellent! Watch the coach.");
+            uiManager.SetProgress(3, totalLessons);
+
+            currentLesson = LessonState.ComboPunch;
+        }
     }
 
     void ComboPunchLesson()
     {
+        uiManager.SetFeedback("Lesson Complete! Great Work!");
 
+        currentLesson = LessonState.Finished;
     }
 }
