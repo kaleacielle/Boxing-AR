@@ -6,9 +6,14 @@ using System.Text;
 
 public class UDPReceiver : MonoBehaviour
 {
+    // Used later for pose matching
     public static string latestPose = "";
+
+    // Used now for wrist tracking
     public static Vector2 wristPosition;
 
+    // Body detection
+    public static bool bodyDetected = false;
 
     private UdpClient client;
 
@@ -29,6 +34,10 @@ public class UDPReceiver : MonoBehaviour
 
         string msg = Encoding.UTF8.GetString(data);
 
+        // Keep the latest message
+        latestPose = msg;
+
+        // Expected format: x,y
         string[] values = msg.Split(',');
 
         if (values.Length == 2)
@@ -37,12 +46,18 @@ public class UDPReceiver : MonoBehaviour
             float y = float.Parse(values[1]);
 
             wristPosition = new Vector2(x, y);
+
+            bodyDetected = true;
+        }
+        else
+        {
+            bodyDetected = false;
         }
 
         client.BeginReceive(ReceiveCallback, null);
     }
 
-    private void OnApplicationQuit()
+    void OnApplicationQuit()
     {
         client?.Close();
     }

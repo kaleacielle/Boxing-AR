@@ -1388,8 +1388,9 @@ GameObject:
   - component: {fileID: 1384272702}
   - component: {fileID: 1384272701}
   - component: {fileID: 1384272706}
+  - component: {fileID: 1384272707}
   m_Layer: 0
-  m_Name: HandCube
+  m_Name: Player Tracker
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1507,11 +1508,23 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1384272700}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ca30fad9737314376b2758d74f9f68e2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
+--- !u!114 &1384272707
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1384272700}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b94e6afbb04294892ae81306f99aad59, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BodyDetector
 --- !u!1 &1423139944
 GameObject:
   m_ObjectHideFlags: 0
@@ -1722,7 +1735,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1815271907}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 899f86c68045346e1bf86f2f77ae5ce3, type: 3}
   m_Name: 
