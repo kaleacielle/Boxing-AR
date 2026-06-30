@@ -6,13 +6,16 @@ using System.Text;
 
 public class UDPReceiver : MonoBehaviour
 {
-    // Keep this so old scripts still compile
+    // Compatibility with older scripts
     public static string latestPose = "";
 
     // Body detection
     public static bool bodyDetected = false;
 
-    // Left & Right hands
+    // Landmarks
+    public static Vector2 leftShoulder;
+    public static Vector2 rightShoulder;
+
     public static Vector2 leftWrist;
     public static Vector2 rightWrist;
 
@@ -37,22 +40,32 @@ public class UDPReceiver : MonoBehaviour
 
             string msg = Encoding.UTF8.GetString(data);
 
-            // Keep old compatibility
             latestPose = msg;
 
             string[] values = msg.Split(',');
 
-            // Left Wrist X,Y + Right Wrist X,Y
-            if (values.Length == 4)
+            // Expected:
+            // LSx,LSy, RSx,RSy, LWx,LWy, RWx,RWy
+            if (values.Length == 8)
             {
-                leftWrist = new Vector2(
+                leftShoulder = new Vector2(
                     float.Parse(values[0]),
                     float.Parse(values[1])
                 );
 
-                rightWrist = new Vector2(
+                rightShoulder = new Vector2(
                     float.Parse(values[2]),
                     float.Parse(values[3])
+                );
+
+                leftWrist = new Vector2(
+                    float.Parse(values[4]),
+                    float.Parse(values[5])
+                );
+
+                rightWrist = new Vector2(
+                    float.Parse(values[6]),
+                    float.Parse(values[7])
                 );
 
                 bodyDetected = true;
