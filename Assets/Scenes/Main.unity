@@ -1802,7 +1802,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ca30fad9737314376b2758d74f9f68e2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
-  isLeftHand: 0
+  isLeftHand: 1
 --- !u!114 &1833787223
 MonoBehaviour:
   m_ObjectHideFlags: 0
