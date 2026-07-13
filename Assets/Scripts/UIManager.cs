@@ -27,7 +27,7 @@ public class UIManager : MonoBehaviour
     public void SetProgress(int current, int total)
     {
         if (progressText != null)
-            progressText.text = $"Lesson {current} / {total}";
+            progressText.text = $"{current} / {total}";
     }
 
     public void SetPoseScore(float score)
