@@ -983,6 +983,79 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 661807132}
   m_CullTransparentMesh: 1
+--- !u!1 &695794110
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 695794112}
+  - component: {fileID: 695794111}
+  m_Layer: 0
+  m_Name: CoachRecorder
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &695794111
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 695794110}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 19b0f0b869bd740ecaa8663810c5d924, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CoachPoseRecorder
+  head: {fileID: 0}
+  leftShoulder: {fileID: 0}
+  rightShoulder: {fileID: 0}
+  leftElbow: {fileID: 0}
+  rightElbow: {fileID: 0}
+  leftHand: {fileID: 0}
+  rightHand: {fileID: 0}
+  spine: {fileID: 0}
+  leftHip: {fileID: 0}
+  rightHip: {fileID: 0}
+  leftKnee: {fileID: 0}
+  rightKnee: {fileID: 0}
+  leftFoot: {fileID: 0}
+  rightFoot: {fileID: 0}
+  currentPose:
+    head: {x: 0, y: 0, z: 0}
+    leftShoulder: {x: 0, y: 0, z: 0}
+    rightShoulder: {x: 0, y: 0, z: 0}
+    leftElbow: {x: 0, y: 0, z: 0}
+    rightElbow: {x: 0, y: 0, z: 0}
+    leftWrist: {x: 0, y: 0, z: 0}
+    rightWrist: {x: 0, y: 0, z: 0}
+    spine: {x: 0, y: 0, z: 0}
+    leftHip: {x: 0, y: 0, z: 0}
+    rightHip: {x: 0, y: 0, z: 0}
+    leftKnee: {x: 0, y: 0, z: 0}
+    rightKnee: {x: 0, y: 0, z: 0}
+    leftFoot: {x: 0, y: 0, z: 0}
+    rightFoot: {x: 0, y: 0, z: 0}
+--- !u!4 &695794112
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 695794110}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 320.6235, y: 959.5213, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &832575517
 GameObject:
   m_ObjectHideFlags: 0
@@ -1409,7 +1482,8 @@ RectTransform:
   m_LocalPosition: {x: 0, y: 0, z: 94.7}
   m_LocalScale: {x: 1.1399496, y: 1.1399496, z: 1.1399496}
   m_ConstrainProportionsScale: 1
-  m_Children: []
+  m_Children:
+  - {fileID: 1607834373}
   m_Father: {fileID: 1621919640}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
@@ -2066,6 +2140,41 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1607834372
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1607834373}
+  m_Layer: 5
+  m_Name: PlayerSkeleton
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &1607834373
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1607834372}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1107004853}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 0, y: 0}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &1621919636
 GameObject:
   m_ObjectHideFlags: 0
@@ -2867,3 +2976,4 @@ SceneRoots:
   - {fileID: 1833787227}
   - {fileID: 2025725102}
   - {fileID: 1518437297}
+  - {fileID: 695794112}

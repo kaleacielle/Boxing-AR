@@ -6,15 +6,19 @@ using System.Text;
 
 public class UDPReceiver : MonoBehaviour
 {
-    // Compatibility with older scripts
     public static string latestPose = "";
 
-    // Body detection
     public static bool bodyDetected = false;
 
-    // Landmarks
+    // Head
+    public static Vector2 head;
+
+    // Upper Body
     public static Vector2 leftShoulder;
     public static Vector2 rightShoulder;
+
+    public static Vector2 leftElbow;
+    public static Vector2 rightElbow;
 
     public static Vector2 leftWrist;
     public static Vector2 rightWrist;
@@ -44,28 +48,42 @@ public class UDPReceiver : MonoBehaviour
 
             string[] values = msg.Split(',');
 
-            // Expected:
-            // LSx,LSy, RSx,RSy, LWx,LWy, RWx,RWy
-            if (values.Length == 8)
+            // Head + Shoulders + Elbows + Wrists
+            if (values.Length == 14)
             {
-                leftShoulder = new Vector2(
+                head = new Vector2(
                     float.Parse(values[0]),
                     float.Parse(values[1])
                 );
 
-                rightShoulder = new Vector2(
+                leftShoulder = new Vector2(
                     float.Parse(values[2]),
                     float.Parse(values[3])
                 );
 
-                leftWrist = new Vector2(
+                rightShoulder = new Vector2(
                     float.Parse(values[4]),
                     float.Parse(values[5])
                 );
 
-                rightWrist = new Vector2(
+                leftElbow = new Vector2(
                     float.Parse(values[6]),
                     float.Parse(values[7])
+                );
+
+                rightElbow = new Vector2(
+                    float.Parse(values[8]),
+                    float.Parse(values[9])
+                );
+
+                leftWrist = new Vector2(
+                    float.Parse(values[10]),
+                    float.Parse(values[11])
+                );
+
+                rightWrist = new Vector2(
+                    float.Parse(values[12]),
+                    float.Parse(values[13])
                 );
 
                 bodyDetected = true;
