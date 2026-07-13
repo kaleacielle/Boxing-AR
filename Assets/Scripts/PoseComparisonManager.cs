@@ -101,18 +101,50 @@ public class PoseComparisonManager : MonoBehaviour
         return currentScore >= 60f;
     }
 
-    public string GetFeedback()
+   public string GetFeedback()
     {
-        if (currentScore >= 90f)
-            return "Excellent!";
+        switch (worstJoint)
+        {
+            case "Head":
+                return "Keep your head steady.";
 
-        if (currentScore >= 75f)
-            return "Good! Adjust " + worstJoint;
+            case "Left Shoulder":
+                return "Raise your left shoulder.";
 
-        if (currentScore >= 60f)
-            return "Move your " + worstJoint;
+            case "Right Shoulder":
+                return "Raise your right shoulder.";
 
-        return "Try matching the coach.";
+            case "Left Elbow":
+                return "Keep your left elbow tucked in.";
+
+            case "Right Elbow":
+                return "Keep your right elbow tucked in.";
+
+            case "Left Wrist":
+                return "Raise your left hand to protect your face.";
+
+            case "Right Wrist":
+                return "Raise your right hand to protect your face.";
+
+            default:
+                return "Excellent!";
+        }
     }
-    
+
+    public string GetRating()
+    {
+        if (currentScore >= 98)
+            return " PERFECT";
+
+        if (currentScore >= 90)
+            return " EXCELLENT";
+
+        if (currentScore >= 80)
+            return " GOOD";
+
+        if (currentScore >= 65)
+            return " KEEP GOING";
+
+        return " TRY AGAIN";
+    }
 }
