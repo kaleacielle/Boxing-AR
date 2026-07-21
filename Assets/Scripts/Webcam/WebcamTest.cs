@@ -10,7 +10,12 @@ public class WebcamTest : MonoBehaviour
     void Start()
     {
         webcamTexture = new WebCamTexture();
+
         webcamImage.texture = webcamTexture;
+
+        // Flip the webcam horizontally (unmirror it)
+        webcamImage.uvRect = new Rect(1, 0, -1, 1);
+
         webcamTexture.Play();
     }
 }
