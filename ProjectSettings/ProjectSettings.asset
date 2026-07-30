@@ -572,7 +572,7 @@ PlayerSettings:
   enableInternalProfiler: 0
   logObjCUncaughtExceptions: 1
   enableCrashReportAPI: 0
-  cameraUsageDescription: 
+  cameraUsageDescription: This app uses the camera for body tracking and pose matching.
   locationUsageDescription: 
   microphoneUsageDescription: 
   bluetoothUsageDescription: 
