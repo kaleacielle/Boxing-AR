@@ -77,7 +77,8 @@ public class GameManager : MonoBehaviour
 
     void GuardLesson()
     {
-        if (poseDetector.CurrentPose == BoxingPose.Guard)
+        if (poseDetector.CurrentPose == BoxingPose.Guard &&
+            HasPassedPoseScoreThreshold())
         {
             coach.PlayLeadJab();
 
@@ -91,7 +92,8 @@ public class GameManager : MonoBehaviour
 
     void LeadJabLesson()
     {
-        if (poseDetector.CurrentPose == BoxingPose.LeadJab)
+        if (poseDetector.CurrentPose == BoxingPose.LeadJab &&
+            HasPassedPoseScoreThreshold())
         {
             coach.PlayComboPunch();
 
@@ -108,5 +110,12 @@ public class GameManager : MonoBehaviour
         uiManager.SetFeedback("Lesson Complete! Great Work!");
 
         currentLesson = LessonState.Finished;
+    }
+
+    bool HasPassedPoseScoreThreshold()
+    {
+        return poseComparisonManager != null &&
+            poseComparisonManager.currentScore >=
+            poseComparisonManager.completionScore;
     }
 }
