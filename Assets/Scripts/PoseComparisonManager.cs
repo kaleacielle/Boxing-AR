@@ -427,7 +427,7 @@ public class PoseComparisonManager : MonoBehaviour
     {
         if (uiManager != null)
         {
-                uiManager.SetPoseScore(currentScore);
+            uiManager.SetPoseScore(currentScore);
             uiManager.SetCoachingUIVisible(false);
             uiManager.ShowReadyMessage("GREAT JOB!");
         }
