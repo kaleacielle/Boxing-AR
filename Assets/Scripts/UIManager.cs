@@ -1,6 +1,7 @@
 using System.Collections;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class UIManager : MonoBehaviour
 {
@@ -11,6 +12,7 @@ public class UIManager : MonoBehaviour
 
     [Header("Pose Matching UI")]
     public TMP_Text poseScoreText;
+    public Slider poseScoreBar;
     public TMP_Text hintText;
 
     [Header("Start and Countdown UI")]
@@ -63,6 +65,9 @@ public class UIManager : MonoBehaviour
 
     public void SetPoseScore(float score)
     {
+        if (poseScoreBar != null)
+            poseScoreBar.value = Mathf.Clamp(score, 0f, 100f);
+
         if (poseScoreText != null)
         {
             poseScoreText.text =
@@ -115,6 +120,9 @@ public class UIManager : MonoBehaviour
     {
         if (poseScoreText != null)
             poseScoreText.gameObject.SetActive(visible);
+
+        if (poseScoreBar != null)
+            poseScoreBar.gameObject.SetActive(visible);
     }
 
     public void SetCoachingUIVisible(bool visible)
