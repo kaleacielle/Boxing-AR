@@ -16,6 +16,8 @@ public class GameManager : MonoBehaviour
     public PoseDetector poseDetector;
     public UIManager uiManager;
 
+    private PoseComparisonManager poseComparisonManager;
+
     [Header("Lesson")]
     public LessonState currentLesson = LessonState.WaitingForPlayer;
 
@@ -23,6 +25,7 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
+        poseComparisonManager = FindFirstObjectByType<PoseComparisonManager>();
         currentLesson = LessonState.WaitingForPlayer;
 
         uiManager.SetLesson("WAITING...");
@@ -32,6 +35,12 @@ public class GameManager : MonoBehaviour
 
     void Update()
     {
+        if (poseComparisonManager != null && !poseComparisonManager.IsExperienceActive)
+        {
+            currentLesson = LessonState.WaitingForPlayer;
+            return;
+        }
+
         switch (currentLesson)
         {
             case LessonState.WaitingForPlayer:

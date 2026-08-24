@@ -92,6 +92,8 @@ public class PoseComparisonManager : MonoBehaviour
 
     private bool hasInitialWristPositions;
 
+    public bool IsExperienceActive => currentState == GameState.MatchingPose;
+
     private void Start()
     {
         ResetToWaitingForWave();
@@ -454,6 +456,11 @@ public class PoseComparisonManager : MonoBehaviour
             uiManager.SetCoachingUIVisible(false);
             uiManager.ShowReadyMessage("WAVE YOUR HAND TO BEGIN");
         }
+    }
+
+    public void RestartExperience()
+    {
+        ResetToWaitingForWave();
     }
 
     private void ResetWaveDetection()

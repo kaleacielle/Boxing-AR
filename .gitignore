@@ -8,6 +8,9 @@
 .utmp/
 /[Ll]ibrary/
 /[Tt]emp/
+# Local Python environments
+/venv/
+/venv_windows/
 /[Oo]bj/
 /[Bb]uild/
 /[Bb]uilds/

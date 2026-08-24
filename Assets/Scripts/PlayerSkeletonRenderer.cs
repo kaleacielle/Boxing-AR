@@ -33,6 +33,6 @@ public class PlayerSkeletonRenderer : MonoBehaviour
         else if (img == rightWrist) RightWrist = pos;
     }
     Vector2 Mid(Vector2 a,Vector2 b){return(a+b)*0.5f;}
-    Vector2 Convert(Vector2 p){float x=Mathf.Lerp(-canvasRect.rect.width*.5f,canvasRect.rect.width*.5f,p.x);float y=Mathf.Lerp(canvasRect.rect.height*.5f,-canvasRect.rect.height*.5f,p.y);return new Vector2(x,y);}
+    Vector2 Convert(Vector2 p){float x=Mathf.Lerp(canvasRect.rect.width*.5f,-canvasRect.rect.width*.5f,p.x);float y=Mathf.Lerp(canvasRect.rect.height*.5f,-canvasRect.rect.height*.5f,p.y);return new Vector2(x,y);}
     void DrawBone(Image bone,Vector2 s,Vector2 e){RectTransform rt=bone.rectTransform;Vector2 a=Convert(s),b=Convert(e),d=b-a;rt.sizeDelta=new Vector2(2f,d.magnitude);rt.anchoredPosition=(a+b)*.5f;rt.localRotation=Quaternion.Euler(0,0,Mathf.Atan2(d.y,d.x)*Mathf.Rad2Deg-90f);}
 }
