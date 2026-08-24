@@ -19,7 +19,7 @@ public class PoseComparisonManager : MonoBehaviour
     [Header("Pose Matching Settings")]
     [Tooltip("Higher values make pose matching more forgiving.")]
     [Range(10f, 300f)]
-    public float perfectDistance = 120f;
+    public float perfectDistance = 100f;
 
     [Tooltip("Score needed to successfully complete the pose.")]
     [Range(0f, 100f)]
