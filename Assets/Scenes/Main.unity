@@ -1097,8 +1097,7 @@ MonoBehaviour:
   player: {fileID: 1607834374}
   coach: {fileID: 587614586}
   uiManager: {fileID: 1621919641}
-  coachManager: {fileID: 1352663650}
-  perfectDistance: 120
+  perfectDistance: 60
   completionScore: 70
   requiredHoldTime: 0.75
   scoreSmoothingSpeed: 6

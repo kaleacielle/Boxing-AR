@@ -12,63 +12,101 @@ public enum LessonState
 public class GameManager : MonoBehaviour
 {
     [Header("References")]
+    public CoachManager coach;
+    public PoseDetector poseDetector;
     public UIManager uiManager;
-    public PoseComparisonManager poseComparisonManager;
+
+    private PoseComparisonManager poseComparisonManager;
 
     [Header("Lesson")]
     public LessonState currentLesson = LessonState.WaitingForPlayer;
 
-    private void Start()
+    private const int totalLessons = 3;
+
+    void Start()
     {
-        if (poseComparisonManager == null)
+        poseComparisonManager = FindFirstObjectByType<PoseComparisonManager>();
+        currentLesson = LessonState.WaitingForPlayer;
+
+        uiManager.SetLesson("WAITING...");
+        uiManager.SetFeedback("Stand in front of the camera");
+        uiManager.SetProgress(0, totalLessons);
+    }
+
+    void Update()
+    {
+        if (poseComparisonManager != null && !poseComparisonManager.IsExperienceActive)
         {
-            poseComparisonManager =
-                FindFirstObjectByType<PoseComparisonManager>();
+            currentLesson = LessonState.WaitingForPlayer;
+            return;
         }
 
-        currentLesson =
-            LessonState.WaitingForPlayer;
+        switch (currentLesson)
+        {
+            case LessonState.WaitingForPlayer:
+                WaitingForPlayer();
+                break;
 
-        // Do NOT start coach animations here.
-        // PoseComparisonManager handles the whole lesson flow.
+            case LessonState.Guard:
+                GuardLesson();
+                break;
+
+            case LessonState.LeadJab:
+                LeadJabLesson();
+                break;
+
+            case LessonState.ComboPunch:
+                ComboPunchLesson();
+                break;
+        }
     }
 
-    private void Update()
+    void WaitingForPlayer()
     {
-        // GameManager intentionally does not control
-        // coach animations or pose progression anymore.
+        if (UDPReceiver.bodyDetected)
+        {
+            coach.PlayIdle();
 
-        // PoseComparisonManager is now the single authority for:
-        //
-        // Wave
-        // ↓
-        // Countdown
-        // ↓
-        // Guard
-        // ↓
-        // 100%
-        // ↓
-        // Countdown
-        // ↓
-        // Lead Jab
-        // ↓
-        // 100%
-        // ↓
-        // Countdown
-        // ↓
-        // Combination
+            uiManager.SetLesson("GUARD");
+            uiManager.SetFeedback("Raise both hands to your face.");
+            uiManager.SetProgress(1, totalLessons);
+
+            currentLesson = LessonState.Guard;
+        }
     }
 
-    public void SetLessonState(
-        LessonState newState
-    )
+    void GuardLesson()
     {
-        currentLesson = newState;
+        if (poseDetector.CurrentPose == BoxingPose.Guard)
+        {
+            coach.PlayLeadJab();
+
+            uiManager.SetLesson("LEAD JAB");
+            uiManager.SetFeedback("Great Guard! Extend your left arm.");
+            uiManager.SetProgress(2, totalLessons);
+
+            currentLesson = LessonState.LeadJab;
+        }
     }
 
-    public void ResetLessonState()
+    void LeadJabLesson()
     {
-        currentLesson =
-            LessonState.WaitingForPlayer;
+        if (poseDetector.CurrentPose == BoxingPose.LeadJab)
+        {
+            coach.PlayComboPunch();
+
+            uiManager.SetLesson("COMBINATION");
+            uiManager.SetFeedback("Excellent! Watch the coach.");
+            uiManager.SetProgress(3, totalLessons);
+
+            currentLesson = LessonState.ComboPunch;
+        }
+    }
+
+    void ComboPunchLesson()
+    {
+        uiManager.SetFeedback("Lesson Complete! Great Work!");
+
+        currentLesson = LessonState.Finished;
     }
 }
