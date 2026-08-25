@@ -71,7 +71,7 @@ public class UIManager : MonoBehaviour
         if (poseScoreText != null)
         {
             poseScoreText.text =
-                $"Pose Match\n{Mathf.RoundToInt(score)}%";
+                $"{Mathf.RoundToInt(score)}%";
         }
     }
 
