@@ -8,30 +8,28 @@ public class PoseComparisonManager : MonoBehaviour
         WaitingForWave,
         Countdown,
         MatchingPose,
-        PoseCompleted
+        PoseCompleted,
+        Finished
     }
 
     [Header("References")]
     public PlayerSkeletonRenderer player;
     public CoachSkeletonRenderer coach;
     public UIManager uiManager;
+    public CoachManager coachManager;
 
     [Header("Pose Matching Settings")]
     [Tooltip("Higher values make pose matching more forgiving.")]
     [Range(10f, 300f)]
     public float perfectDistance = 100f;
 
-    [Tooltip("Score needed to successfully complete the pose.")]
-    [Range(0f, 100f)]
+    [Tooltip("Internal score needed to successfully complete the pose.")]
+    [Range(1f, 100f)]
     public float completionScore = 70f;
 
-    [Tooltip("How long the player must maintain the required score.")]
+    [Tooltip("How long the successful pose must be held.")]
     [Range(0.1f, 5f)]
     public float requiredHoldTime = 0.75f;
-
-    [Tooltip("Higher values make the displayed score respond faster.")]
-    [Range(1f, 20f)]
-    public float scoreSmoothingSpeed = 6f;
 
     [Header("Wave Detection")]
     [Tooltip("The wrist must move this far horizontally before it counts as a direction change.")]
@@ -75,6 +73,8 @@ public class PoseComparisonManager : MonoBehaviour
 
     private GameState currentState = GameState.WaitingForWave;
 
+    private int currentPoseIndex = 0;
+
     private float rawScore;
     private float poseHoldTimer;
 
@@ -92,10 +92,17 @@ public class PoseComparisonManager : MonoBehaviour
 
     private bool hasInitialWristPositions;
 
-    public bool IsExperienceActive => currentState == GameState.MatchingPose;
+    public bool IsExperienceActive =>
+        currentState == GameState.MatchingPose;
 
     private void Start()
     {
+        if (coachManager == null)
+        {
+            coachManager =
+                FindFirstObjectByType<CoachManager>();
+        }
+
         ResetToWaitingForWave();
     }
 
@@ -111,7 +118,7 @@ public class PoseComparisonManager : MonoBehaviour
                 break;
 
             case GameState.Countdown:
-                // Do not calculate or display pose scores during countdown.
+                // No scoring during countdown.
                 break;
 
             case GameState.MatchingPose:
@@ -119,30 +126,44 @@ public class PoseComparisonManager : MonoBehaviour
                 break;
 
             case GameState.PoseCompleted:
-                // Wait for the completion coroutine.
+                // Coroutine controls transition.
+                break;
+
+            case GameState.Finished:
                 break;
         }
     }
+
+    // =========================================================
+    // WAVE START
+    // =========================================================
 
     private void DetectWave()
     {
         if (!hasInitialWristPositions)
         {
-            previousLeftWristX = player.LeftWrist.x;
-            previousRightWristX = player.RightWrist.x;
+            previousLeftWristX =
+                player.LeftWrist.x;
+
+            previousRightWristX =
+                player.RightWrist.x;
+
             hasInitialWristPositions = true;
+
             return;
         }
 
-        bool leftHandRaised = IsHandRaised(
-            player.LeftWrist,
-            player.LeftShoulder
-        );
+        bool leftHandRaised =
+            IsHandRaised(
+                player.LeftWrist,
+                player.LeftShoulder
+            );
 
-        bool rightHandRaised = IsHandRaised(
-            player.RightWrist,
-            player.RightShoulder
-        );
+        bool rightHandRaised =
+            IsHandRaised(
+                player.RightWrist,
+                player.RightShoulder
+            );
 
         if (leftHandRaised || rightHandRaised)
         {
@@ -159,7 +180,9 @@ public class PoseComparisonManager : MonoBehaviour
             }
             else
             {
-                previousLeftWristX = player.LeftWrist.x;
+                previousLeftWristX =
+                    player.LeftWrist.x;
+
                 leftWaveDirection = 0;
                 leftDirectionChanges = 0;
             }
@@ -175,18 +198,23 @@ public class PoseComparisonManager : MonoBehaviour
             }
             else
             {
-                previousRightWristX = player.RightWrist.x;
+                previousRightWristX =
+                    player.RightWrist.x;
+
                 rightWaveDirection = 0;
                 rightDirectionChanges = 0;
             }
 
             bool waveDetected =
-                leftDirectionChanges >= requiredWaveDirectionChanges ||
-                rightDirectionChanges >= requiredWaveDirectionChanges;
+                leftDirectionChanges >=
+                    requiredWaveDirectionChanges ||
+                rightDirectionChanges >=
+                    requiredWaveDirectionChanges;
 
             if (allowRaisedHandFallback)
             {
-                raisedHandTimer += Time.deltaTime;
+                raisedHandTimer +=
+                    Time.deltaTime;
             }
             else
             {
@@ -195,11 +223,15 @@ public class PoseComparisonManager : MonoBehaviour
 
             bool raisedHandDetected =
                 allowRaisedHandFallback &&
-                raisedHandTimer >= raisedHandStartTime;
+                raisedHandTimer >=
+                    raisedHandStartTime;
 
             if (waveDetected || raisedHandDetected)
             {
+                Debug.Log("👋 WAVE DETECTED");
+
                 BeginCountdown();
+
                 return;
             }
 
@@ -212,20 +244,28 @@ public class PoseComparisonManager : MonoBehaviour
         {
             raisedHandTimer = 0f;
 
-            previousLeftWristX = player.LeftWrist.x;
-            previousRightWristX = player.RightWrist.x;
+            previousLeftWristX =
+                player.LeftWrist.x;
+
+            previousRightWristX =
+                player.RightWrist.x;
 
             if (waveTimer > 0f)
             {
                 waveTimer += Time.deltaTime;
 
                 if (waveTimer > waveTimeLimit)
+                {
                     ResetWaveDetection();
+                }
             }
         }
     }
 
-    private bool IsHandRaised(Vector2 wrist, Vector2 shoulder)
+    private bool IsHandRaised(
+        Vector2 wrist,
+        Vector2 shoulder
+    )
     {
         return wrist.y > shoulder.y;
     }
@@ -234,89 +274,283 @@ public class PoseComparisonManager : MonoBehaviour
         float currentWristX,
         ref float previousWristX,
         ref int previousDirection,
-        ref int directionChanges)
+        ref int directionChanges
+    )
     {
-        float movement = currentWristX - previousWristX;
+        float movement =
+            currentWristX -
+            previousWristX;
 
-        if (Mathf.Abs(movement) < waveMovementDistance)
+        if (
+            Mathf.Abs(movement) <
+            waveMovementDistance
+        )
+        {
             return;
+        }
 
-        int newDirection = movement > 0f ? 1 : -1;
+        int newDirection =
+            movement > 0f ? 1 : -1;
 
-        if (previousDirection != 0 && newDirection != previousDirection)
+        if (
+            previousDirection != 0 &&
+            newDirection != previousDirection
+        )
         {
             directionChanges++;
         }
 
-        previousDirection = newDirection;
-        previousWristX = currentWristX;
+        previousDirection =
+            newDirection;
+
+        previousWristX =
+            currentWristX;
     }
+
+    // =========================================================
+    // FIRST COUNTDOWN
+    // =========================================================
 
     private void BeginCountdown()
     {
-        if (currentState != GameState.WaitingForWave)
+        if (
+            currentState !=
+            GameState.WaitingForWave
+        )
+        {
             return;
+        }
 
-        currentState = GameState.Countdown;
+        Debug.Log(
+            "🟡 STARTING FIRST COUNTDOWN"
+        );
+
+        currentState =
+            GameState.Countdown;
+
         ResetWaveDetection();
-        StartCoroutine(CountdownRoutine());
+
+        StartCoroutine(
+            CountdownRoutine()
+        );
     }
 
     private IEnumerator CountdownRoutine()
     {
+        Debug.Log(
+            "⏱ COUNTDOWN STARTED FOR POSE: " +
+            currentPoseIndex
+        );
+
+        rawScore = 0f;
+        currentScore = 0f;
+        poseHoldTimer = 0f;
+        worstJoint = "";
+
         if (uiManager != null)
         {
+            uiManager.SetPoseScore(0f);
             uiManager.SetPoseScoreVisible(false);
             uiManager.SetCoachingUIVisible(false);
-            uiManager.ShowReadyMessage("GET READY!");
+
+            uiManager.ShowReadyMessage(
+                "GET READY!"
+            );
         }
 
-        yield return new WaitForSeconds(getReadyDuration);
+        Debug.Log("GET READY!");
+
+        yield return new WaitForSeconds(
+            getReadyDuration
+        );
+
+        Debug.Log("3️");
 
         if (uiManager != null)
+        {
             uiManager.ShowReadyMessage("3");
+        }
 
-        yield return new WaitForSeconds(countdownNumberDuration);
+        yield return new WaitForSeconds(
+            countdownNumberDuration
+        );
+
+        Debug.Log("2");
 
         if (uiManager != null)
+        {
             uiManager.ShowReadyMessage("2");
+        }
 
-        yield return new WaitForSeconds(countdownNumberDuration);
+        yield return new WaitForSeconds(
+            countdownNumberDuration
+        );
+
+        Debug.Log("1️");
 
         if (uiManager != null)
+        {
             uiManager.ShowReadyMessage("1");
+        }
 
-        yield return new WaitForSeconds(countdownNumberDuration);
+        yield return new WaitForSeconds(
+            countdownNumberDuration
+        );
+
+        Debug.Log(
+            "MATCH THE POSE"
+        );
 
         if (uiManager != null)
-            uiManager.ShowReadyMessage("MATCH THE POSE!");
+        {
+            uiManager.ShowReadyMessage(
+                "MATCH THE POSE!"
+            );
+        }
 
-        yield return new WaitForSeconds(matchPoseMessageDuration);
+        yield return new WaitForSeconds(
+            matchPoseMessageDuration
+        );
+
+        Debug.Log(
+            "🎬 NOW PLAYING COACH POSE: " +
+            currentPoseIndex
+        );
+
+        PlayCurrentPose();
+
+        yield return null;
 
         if (uiManager != null)
         {
             uiManager.HideReadyMessage();
-            uiManager.SetPoseScoreVisible(true);
-            uiManager.SetCoachingUIVisible(true);
-            uiManager.SetFeedback("Copy the coach's pose.");
+
+            uiManager.SetPoseScore(0f);
+
+            uiManager.SetPoseScoreVisible(
+                true
+            );
+
+            uiManager.SetCoachingUIVisible(
+                true
+            );
+
+            uiManager.SetFeedback(
+                "Copy the coach's pose."
+            );
+
             uiManager.SetHint("");
         }
 
-        poseHoldTimer = 0f;
-        rawScore = 0f;
-        currentScore = 0f;
-        currentState = GameState.MatchingPose;
+        currentState =
+            GameState.MatchingPose;
+
+        Debug.Log(
+            "MATCHING POSE INDEX: " +
+            currentPoseIndex
+        );
     }
+
+    // =========================================================
+    // POSE SEQUENCE
+    // =========================================================
+
+    private void PlayCurrentPose()
+    {
+        if (coachManager == null)
+        {
+            Debug.LogError(
+                " CoachManager is missing!"
+            );
+
+            return;
+        }
+
+        switch (currentPoseIndex)
+        {
+            case 0:
+
+                Debug.Log(
+                    " COACH = GUARD"
+                );
+
+                coachManager.PlayIdle();
+
+                break;
+
+            case 1:
+
+                Debug.Log(
+                    "COACH = LEAD JAB"
+                );
+
+                coachManager.PlayLeadJab();
+
+                break;
+
+            case 2:
+
+                Debug.Log(
+                    " COACH = COMBINATION"
+                );
+
+                coachManager.PlayComboPunch();
+
+                break;
+        }
+    }
+
+    // =========================================================
+    // POSE COMPARISON
+    // =========================================================
 
     private void UpdatePoseComparison()
     {
-        float head = Compare(player.Head, coach.Head);
-        float leftShoulder = Compare(player.LeftShoulder, coach.LeftShoulder);
-        float rightShoulder = Compare(player.RightShoulder, coach.RightShoulder);
-        float leftElbow = Compare(player.LeftElbow, coach.LeftElbow);
-        float rightElbow = Compare(player.RightElbow, coach.RightElbow);
-        float leftWrist = Compare(player.LeftWrist, coach.LeftWrist);
-        float rightWrist = Compare(player.RightWrist, coach.RightWrist);
+        float head =
+            Compare(
+                player.Head,
+                coach.Head
+            );
+
+        float leftShoulder =
+            Compare(
+                player.LeftShoulder,
+                coach.LeftShoulder
+            );
+
+        float rightShoulder =
+            Compare(
+                player.RightShoulder,
+                coach.RightShoulder
+            );
+
+        float leftElbow =
+            Compare(
+                player.LeftElbow,
+                coach.LeftElbow
+            );
+
+        float rightElbow =
+            Compare(
+                player.RightElbow,
+                coach.RightElbow
+            );
+
+        float leftWrist =
+            Compare(
+                player.LeftWrist,
+                coach.LeftWrist
+            );
+
+        float rightWrist =
+            Compare(
+                player.RightWrist,
+                coach.RightWrist
+            );
+
+        // -----------------------------------------
+        // RAW INTERNAL SCORE
+        // -----------------------------------------
 
         rawScore =
             (
@@ -329,11 +563,9 @@ public class PoseComparisonManager : MonoBehaviour
                 rightWrist
             ) / 7f;
 
-        currentScore = Mathf.Lerp(
-            currentScore,
-            rawScore,
-            Time.deltaTime * scoreSmoothingSpeed
-        );
+        // -----------------------------------------
+        // FIND WORST JOINT
+        // -----------------------------------------
 
         float[] scores =
         {
@@ -359,103 +591,434 @@ public class PoseComparisonManager : MonoBehaviour
 
         int worst = 0;
 
-        for (int i = 1; i < scores.Length; i++)
+        for (
+            int i = 1;
+            i < scores.Length;
+            i++
+        )
         {
-            if (scores[i] < scores[worst])
+            if (
+                scores[i] <
+                scores[worst]
+            )
+            {
                 worst = i;
+            }
         }
 
-        worstJoint = names[worst];
+        worstJoint =
+            names[worst];
+
+        // -----------------------------------------
+        // NORMALISE EASY SCORE TO 100%
+        //
+        // completionScore = 70
+        //
+        // raw 35 = 50%
+        // raw 56 = 80%
+        // raw 70 = 100%
+        // -----------------------------------------
+
+        float displayScore =
+            Mathf.Clamp01(
+                rawScore /
+                Mathf.Max(
+                    completionScore,
+                    0.01f
+                )
+            ) * 100f;
+
+        currentScore =
+            displayScore;
+
+        int displayedPercentage =
+            Mathf.Clamp(
+                Mathf.RoundToInt(
+                    displayScore
+                ),
+                0,
+                100
+            );
 
         if (uiManager != null)
         {
-            uiManager.SetPoseScore(currentScore);
-            uiManager.SetFeedback(GetFeedback());
-            uiManager.SetHint(GetHint());
+            uiManager.SetPoseScore(
+                displayScore
+            );
+
+            uiManager.SetFeedback(
+                GetFeedback()
+            );
+
+            uiManager.SetHint(
+                GetHint()
+            );
         }
 
-        if (currentScore >= completionScore)
+        // -----------------------------------------
+        // SUCCESS
+        // -----------------------------------------
+
+        if (displayedPercentage >= 100)
         {
-            poseHoldTimer += Time.deltaTime;
+            poseHoldTimer +=
+                Time.deltaTime;
 
             if (uiManager != null)
             {
-                float holdProgress = Mathf.Clamp01(
-                    poseHoldTimer / requiredHoldTime
+                uiManager.SetPoseScore(
+                    100f
                 );
 
+                float holdProgress =
+                    Mathf.Clamp01(
+                        poseHoldTimer /
+                        requiredHoldTime
+                    );
+
                 uiManager.SetFeedback(
-                    $"Hold it! {Mathf.RoundToInt(holdProgress * 100f)}%"
+                    "Hold it! " +
+                    Mathf.RoundToInt(
+                        holdProgress * 100f
+                    ) +
+                    "%"
                 );
             }
 
-            if (poseHoldTimer >= requiredHoldTime)
+            if (
+                poseHoldTimer >=
+                requiredHoldTime
+            )
             {
+                Debug.Log(
+                    "✅ POSE REACHED 100%: " +
+                    currentPoseIndex
+                );
+
                 CompletePose();
             }
         }
         else
         {
-            poseHoldTimer = Mathf.Max(
-                0f,
-                poseHoldTimer - Time.deltaTime * 2f
-            );
+            poseHoldTimer =
+                Mathf.Max(
+                    0f,
+                    poseHoldTimer -
+                    Time.deltaTime * 2f
+                );
         }
     }
 
-    private float Compare(Vector2 playerJoint, Vector2 coachJoint)
+    private float Compare(
+        Vector2 playerJoint,
+        Vector2 coachJoint
+    )
     {
-        float distance = Vector2.Distance(playerJoint, coachJoint);
+        float distance =
+            Vector2.Distance(
+                playerJoint,
+                coachJoint
+            );
 
-        float score = Mathf.Clamp01(
-            1f - distance / perfectDistance
-        );
+        float score =
+            Mathf.Clamp01(
+                1f -
+                distance /
+                perfectDistance
+            );
 
         return score * 100f;
     }
 
+    // =========================================================
+    // POSE COMPLETION
+    // =========================================================
+
     private void CompletePose()
     {
-        if (currentState != GameState.MatchingPose)
+        if (
+            currentState !=
+            GameState.MatchingPose
+        )
+        {
             return;
+        }
 
-        currentState = GameState.PoseCompleted;
-        StartCoroutine(PoseCompletedRoutine());
+        Debug.Log(
+            " COMPLETE POSE CALLED: " +
+            currentPoseIndex
+        );
+
+        currentState =
+            GameState.PoseCompleted;
+
+        StartCoroutine(
+            PoseCompletedRoutine()
+        );
     }
 
     private IEnumerator PoseCompletedRoutine()
     {
+        Debug.Log(
+            "✅ POSE COMPLETED ROUTINE START: " +
+            currentPoseIndex
+        );
+
+        currentScore = 100f;
+
         if (uiManager != null)
         {
-            uiManager.SetPoseScore(currentScore);
-            uiManager.SetCoachingUIVisible(false);
-            uiManager.ShowReadyMessage("GREAT JOB!");
+            uiManager.SetPoseScore(
+                100f
+            );
+
+            uiManager.SetPoseScoreVisible(
+                true
+            );
+
+            uiManager.SetCoachingUIVisible(
+                false
+            );
+
+            uiManager.ShowReadyMessage(
+                "GREAT JOB!"
+            );
         }
 
-        yield return new WaitForSeconds(completedMessageDuration);
+        Debug.Log(
+            "⭐ SHOWING GREAT JOB"
+        );
 
-        ResetToWaitingForWave();
+        yield return new WaitForSeconds(
+            completedMessageDuration
+        );
+
+        Debug.Log(
+            "➡️ GREAT JOB FINISHED"
+        );
+
+        // -----------------------------------------
+        // FINISHED ALL POSES
+        // -----------------------------------------
+
+        if (currentPoseIndex >= 2)
+        {
+            Debug.Log(
+                " ALL 3 POSES COMPLETE"
+            );
+
+            currentState =
+                GameState.Finished;
+
+            if (uiManager != null)
+            {
+                uiManager.SetPoseScoreVisible(
+                    false
+                );
+
+                uiManager.SetCoachingUIVisible(
+                    false
+                );
+
+                uiManager.ShowReadyMessage(
+                    "LESSON COMPLETE!"
+                );
+            }
+
+            yield break;
+        }
+
+        // -----------------------------------------
+        // NEXT POSE
+        // -----------------------------------------
+
+        currentPoseIndex++;
+
+        Debug.Log(
+            "➡️ MOVING TO POSE INDEX: " +
+            currentPoseIndex
+        );
+
+        rawScore = 0f;
+        currentScore = 0f;
+        poseHoldTimer = 0f;
+        worstJoint = "";
+
+        currentState =
+            GameState.Countdown;
+
+        if (uiManager != null)
+        {
+            uiManager.SetPoseScore(0f);
+
+            uiManager.SetPoseScoreVisible(
+                false
+            );
+
+            uiManager.SetCoachingUIVisible(
+                false
+            );
+
+            uiManager.ShowReadyMessage(
+                "GET READY!"
+            );
+        }
+
+        Debug.Log(
+            " BETWEEN POSE GET READY"
+        );
+
+        yield return new WaitForSeconds(
+            getReadyDuration
+        );
+
+        // 3
+        Debug.Log("3️⃣");
+
+        if (uiManager != null)
+        {
+            uiManager.ShowReadyMessage(
+                "3"
+            );
+        }
+
+        yield return new WaitForSeconds(
+            countdownNumberDuration
+        );
+
+        // 2
+        Debug.Log("2️⃣");
+
+        if (uiManager != null)
+        {
+            uiManager.ShowReadyMessage(
+                "2"
+            );
+        }
+
+        yield return new WaitForSeconds(
+            countdownNumberDuration
+        );
+
+        // 1
+        Debug.Log("1️⃣");
+
+        if (uiManager != null)
+        {
+            uiManager.ShowReadyMessage(
+                "1"
+            );
+        }
+
+        yield return new WaitForSeconds(
+            countdownNumberDuration
+        );
+
+        Debug.Log(
+            "BETWEEN POSE MATCH THE POSE"
+        );
+
+        if (uiManager != null)
+        {
+            uiManager.ShowReadyMessage(
+                "MATCH THE POSE!"
+            );
+        }
+
+        yield return new WaitForSeconds(
+            matchPoseMessageDuration
+        );
+
+        // -----------------------------------------
+        // ONLY NOW CHANGE COACH POSE
+        // -----------------------------------------
+
+        Debug.Log(
+            "🎬 PLAYING NEXT COACH POSE: " +
+            currentPoseIndex
+        );
+
+        PlayCurrentPose();
+
+        // Give Animator one frame.
+        yield return null;
+
+        if (uiManager != null)
+        {
+            uiManager.HideReadyMessage();
+
+            uiManager.SetPoseScore(
+                0f
+            );
+
+            uiManager.SetPoseScoreVisible(
+                true
+            );
+
+            uiManager.SetCoachingUIVisible(
+                true
+            );
+
+            uiManager.SetFeedback(
+                "Copy the coach's pose."
+            );
+
+            uiManager.SetHint("");
+        }
+
+        currentState =
+            GameState.MatchingPose;
+
+        Debug.Log(
+            " NOW MATCHING POSE: " +
+            currentPoseIndex
+        );
     }
+
+    // =========================================================
+    // RESET
+    // =========================================================
 
     private void ResetToWaitingForWave()
     {
         StopAllCoroutines();
 
-        currentState = GameState.WaitingForWave;
+        currentState =
+            GameState.WaitingForWave;
+
+        currentPoseIndex = 0;
+
         currentScore = 0f;
         rawScore = 0f;
+
         poseHoldTimer = 0f;
+
         worstJoint = "";
 
         ResetWaveDetection();
 
         if (uiManager != null)
         {
-            uiManager.SetPoseScore(0f);
-            uiManager.SetPoseScoreVisible(false);
-            uiManager.SetCoachingUIVisible(false);
-            uiManager.ShowReadyMessage("WAVE YOUR HAND TO BEGIN");
+            uiManager.SetPoseScore(
+                0f
+            );
+
+            uiManager.SetPoseScoreVisible(
+                false
+            );
+
+            uiManager.SetCoachingUIVisible(
+                false
+            );
+
+            uiManager.ShowReadyMessage(
+                "WAVE YOUR HAND TO BEGIN"
+            );
         }
+
+        Debug.Log(
+            "🔄 EXPERIENCE RESET"
+        );
     }
 
     public void RestartExperience()
@@ -476,15 +1039,25 @@ public class PoseComparisonManager : MonoBehaviour
 
         if (player != null)
         {
-            previousLeftWristX = player.LeftWrist.x;
-            previousRightWristX = player.RightWrist.x;
-            hasInitialWristPositions = true;
+            previousLeftWristX =
+                player.LeftWrist.x;
+
+            previousRightWristX =
+                player.RightWrist.x;
+
+            hasInitialWristPositions =
+                true;
         }
         else
         {
-            hasInitialWristPositions = false;
+            hasInitialWristPositions =
+                false;
         }
     }
+
+    // =========================================================
+    // FEEDBACK
+    // =========================================================
 
     public bool IsExcellent()
     {
@@ -504,35 +1077,47 @@ public class PoseComparisonManager : MonoBehaviour
     public string GetFeedback()
     {
         if (currentScore >= 90f)
-            return "Excellent! Hold that pose.";
+        {
+            return "Excellent! Almost there!";
+        }
 
-        if (currentScore >= completionScore)
-            return "Great pose! Keep holding it.";
+        if (currentScore >= 75f)
+        {
+            return "Great pose! Keep going!";
+        }
 
         switch (worstJoint)
         {
             case "Head":
+
                 return "Keep your head steady.";
 
             case "Left Shoulder":
+
                 return "Adjust your left shoulder.";
 
             case "Right Shoulder":
+
                 return "Adjust your right shoulder.";
 
             case "Left Elbow":
+
                 return "Move your left elbow closer to the coach.";
 
             case "Right Elbow":
+
                 return "Move your right elbow closer to the coach.";
 
             case "Left Wrist":
+
                 return "Move your left hand closer to the coach.";
 
             case "Right Wrist":
+
                 return "Move your right hand closer to the coach.";
 
             default:
+
                 return "Copy the coach's pose.";
         }
     }
@@ -542,43 +1127,51 @@ public class PoseComparisonManager : MonoBehaviour
         switch (worstJoint)
         {
             case "Head":
+
                 return "Check your head position.";
 
             case "Left Shoulder":
+
                 return "Check your left shoulder.";
 
             case "Right Shoulder":
+
                 return "Check your right shoulder.";
 
             case "Left Elbow":
+
                 return "Check your left elbow.";
 
             case "Right Elbow":
+
                 return "Check your right elbow.";
 
             case "Left Wrist":
+
                 return "Check your left hand.";
 
             case "Right Wrist":
+
                 return "Check your right hand.";
 
             default:
+
                 return "";
         }
     }
 
     public string GetRating()
     {
-        if (currentScore >= 90f)
+        if (currentScore >= 100f)
             return "PERFECT";
 
-        if (currentScore >= 80f)
+        if (currentScore >= 85f)
             return "EXCELLENT";
 
         if (currentScore >= 70f)
             return "GOOD";
 
-        if (currentScore >= 55f)
+        if (currentScore >= 50f)
             return "KEEP GOING";
 
         return "TRY AGAIN";

@@ -1,4 +1,5 @@
 using UnityEngine;
+using System;
 
 public class CoachManager : MonoBehaviour
 {
@@ -7,10 +8,20 @@ public class CoachManager : MonoBehaviour
     void Awake()
     {
         animator = GetComponent<Animator>();
+
+        if (animator == null)
+        {
+            Debug.LogError(" CoachManager: Animator not found!");
+        }
     }
 
     public void PlayIdle()
     {
+        Debug.Log(
+            " CoachManager.PlayIdle() CALLED\n" +
+            Environment.StackTrace
+        );
+
         animator.ResetTrigger("PlayLeadJab");
         animator.ResetTrigger("PlayComboPunch");
 
@@ -19,6 +30,11 @@ public class CoachManager : MonoBehaviour
 
     public void PlayLeadJab()
     {
+        Debug.LogWarning(
+            " CoachManager.PlayLeadJab() CALLED\n" +
+            Environment.StackTrace
+        );
+
         animator.ResetTrigger("PlayIdle");
         animator.ResetTrigger("PlayComboPunch");
 
@@ -27,6 +43,11 @@ public class CoachManager : MonoBehaviour
 
     public void PlayComboPunch()
     {
+        Debug.LogWarning(
+            " CoachManager.PlayComboPunch() CALLED\n" +
+            Environment.StackTrace
+        );
+
         animator.ResetTrigger("PlayIdle");
         animator.ResetTrigger("PlayLeadJab");
 
