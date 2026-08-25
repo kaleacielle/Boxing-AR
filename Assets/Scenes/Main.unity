@@ -304,6 +304,8 @@ MonoBehaviour:
   poseDetector: {fileID: 1384272708}
   uiManager: {fileID: 1621919641}
   currentLesson: 0
+  betweenPoseCountdownDuration: 0.5
+  nextPoseMessageDuration: 1
 --- !u!1 &165239237
 GameObject:
   m_ObjectHideFlags: 0
