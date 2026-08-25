@@ -304,8 +304,9 @@ MonoBehaviour:
   poseDetector: {fileID: 1384272708}
   uiManager: {fileID: 1621919641}
   currentLesson: 0
-  betweenPoseCountdownDuration: 0.5
-  nextPoseMessageDuration: 1
+  messageDuration: 1
+  countdownDuration: 1
+  matchPoseDuration: 1
 --- !u!1 &165239237
 GameObject:
   m_ObjectHideFlags: 0
@@ -1103,6 +1104,7 @@ MonoBehaviour:
   completionScore: 70
   requiredHoldTime: 0.75
   scoreSmoothingSpeed: 6
+  visualFullScoreThreshold: 100
   waveMovementDistance: 35
   requiredWaveDirectionChanges: 2
   waveTimeLimit: 2
@@ -3143,7 +3145,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 3d5f108c43ccc4feb8578511cd81a511, type: 3}
       propertyPath: m_LocalPosition.x
-      value: -212.38
+      value: -212.339
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 3d5f108c43ccc4feb8578511cd81a511, type: 3}
       propertyPath: m_LocalPosition.y
@@ -3151,7 +3153,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 3d5f108c43ccc4feb8578511cd81a511, type: 3}
       propertyPath: m_LocalPosition.z
-      value: -7.54
+      value: -7.555
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: 3d5f108c43ccc4feb8578511cd81a511, type: 3}
       propertyPath: m_LocalRotation.w

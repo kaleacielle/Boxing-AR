@@ -33,6 +33,11 @@ public class PoseComparisonManager : MonoBehaviour
     [Range(1f, 20f)]
     public float scoreSmoothingSpeed = 6f;
 
+    [Header("Display Score")]
+    [Tooltip("Internal score that should visually display as 100%. This does NOT change pose detection accuracy.")]
+    [Range(1f, 100f)]
+    public float visualFullScoreThreshold = 17f;
+
     [Header("Wave Detection")]
     [Tooltip("The wrist must move this far horizontally before it counts as a direction change.")]
     [Range(5f, 200f)]
@@ -369,7 +374,7 @@ public class PoseComparisonManager : MonoBehaviour
 
         if (uiManager != null)
         {
-            uiManager.SetPoseScore(currentScore);
+            uiManager.SetPoseScore(GetDisplayScore());
             uiManager.SetFeedback(GetFeedback());
             uiManager.SetHint(GetHint());
         }
@@ -403,6 +408,11 @@ public class PoseComparisonManager : MonoBehaviour
         }
     }
 
+    private float GetDisplayScore()
+    {
+        return Mathf.Clamp01(currentScore / visualFullScoreThreshold) * 100f;
+    }
+
     private float Compare(Vector2 playerJoint, Vector2 coachJoint)
     {
         float distance = Vector2.Distance(playerJoint, coachJoint);
@@ -427,7 +437,7 @@ public class PoseComparisonManager : MonoBehaviour
     {
         if (uiManager != null)
         {
-            uiManager.SetPoseScore(currentScore);
+            uiManager.SetPoseScore(GetDisplayScore());
             uiManager.SetCoachingUIVisible(false);
             uiManager.ShowReadyMessage("GREAT JOB!");
         }
