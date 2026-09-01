@@ -56,7 +56,17 @@ public class UDPReceiver : MonoBehaviour
         }
         catch (SocketException socketException)
         {
-            Debug.LogError($"[UDPReceiver] Could not bind UDP port {listenPort}: {socketException.Message}");
+            if (socketException.SocketErrorCode == SocketError.AddressAlreadyInUse)
+            {
+                Debug.LogWarning($"[UDPReceiver] Port {listenPort} is already in use. Attempting to recover from a stale tracker instance.");
+                if (TryRecoverPortConflict(listenPort))
+                {
+                    StartListening();
+                    return;
+                }
+            }
+
+            Debug.LogError($"[UDPReceiver] Could not bind UDP port {listenPort}: {socketException.Message}. This usually means another tracker instance is still running or a stale process is holding the port.");
         }
         catch (Exception exception)
         {
@@ -146,6 +156,103 @@ public class UDPReceiver : MonoBehaviour
         {
             Debug.LogError($"[UDPReceiver] Receive callback failed: {exception.Message}");
         }
+    }
+
+    private bool TryRecoverPortConflict(int port)
+    {
+        try
+        {
+            if (Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.WindowsPlayer)
+            {
+                string command = $"netstat -ano | findstr :{port}";
+                using (var process = new System.Diagnostics.Process())
+                {
+                    process.StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = "/C " + command,
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    };
+
+                    process.Start();
+                    string output = process.StandardOutput.ReadToEnd();
+                    string error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    if (string.IsNullOrEmpty(output) && string.IsNullOrEmpty(error))
+                        return false;
+
+                    string[] lines = output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                    foreach (string line in lines)
+                    {
+                        if (!line.Contains($":{port}"))
+                            continue;
+
+                        string[] parts = line.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                        if (parts.Length < 5)
+                            continue;
+
+                        string pidText = parts[parts.Length - 1];
+                        if (int.TryParse(pidText, out int pid))
+                        {
+                            using (var kill = new System.Diagnostics.Process())
+                            {
+                                kill.StartInfo = new System.Diagnostics.ProcessStartInfo
+                                {
+                                    FileName = "taskkill",
+                                    Arguments = $"/PID {pid} /F",
+                                    UseShellExecute = false,
+                                    CreateNoWindow = true,
+                                    RedirectStandardOutput = true,
+                                    RedirectStandardError = true
+                                };
+
+                                kill.Start();
+                                kill.WaitForExit();
+                                Debug.Log($"[UDPReceiver] Killed stale process holding UDP port {port} (PID {pid}).");
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            else
+            {
+                string command = $"lsof -nP -iUDP:{port} || fuser -k {port}/udp";
+                using (var process = new System.Diagnostics.Process())
+                {
+                    process.StartInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "/bin/bash",
+                        Arguments = "-lc \"" + command + "\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true
+                    };
+
+                    process.Start();
+                    string output = process.StandardOutput.ReadToEnd();
+                    string error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    if (!string.IsNullOrEmpty(output) || !string.IsNullOrEmpty(error))
+                    {
+                        Debug.Log($"[UDPReceiver] Cleared stale port holder on UDP {port}.");
+                        return true;
+                    }
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning($"[UDPReceiver] Recovery attempt failed: {exception.Message}");
+        }
+
+        return false;
     }
 
     private bool TryParse(string value, out float parsed)

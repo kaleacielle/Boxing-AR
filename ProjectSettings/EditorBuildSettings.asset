@@ -5,7 +5,7 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/LEDTemplateTest.unity
     guid: 68dc5cfb7622c41ba952da3a1c41ae61
   - enabled: 0

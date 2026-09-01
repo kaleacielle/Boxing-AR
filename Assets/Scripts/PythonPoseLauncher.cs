@@ -59,35 +59,52 @@ public class PythonPoseLauncher : MonoBehaviour
         if (!autoStartOnPlay && !Application.isPlaying)
             return;
 
+        if (pythonProcess != null && !pythonProcess.HasExited)
+        {
+            UnityEngine.Debug.Log($"[TRACKER] Python process already running: {pythonProcess.ProcessName} (PID {pythonProcess.Id})");
+            return;
+        }
+
+        CleanupStaleTrackerProcesses();
+
+        if (!Application.isEditor)
+        {
+            string bundledTracker = ResolveBundledTrackerPath();
+            if (!string.IsNullOrEmpty(bundledTracker))
+            {
+                LaunchBundledTracker(bundledTracker);
+                return;
+            }
+
+            UnityEngine.Debug.LogError("[TRACKER] Standalone build did not find a bundled tracker in the app output. The build is missing Tracking/PoseTracker.");
+            return;
+        }
+
         projectRoot = FindProjectRoot();
         if (string.IsNullOrEmpty(projectRoot))
         {
-            UnityEngine.Debug.LogError("[PythonPoseLauncher] Could not locate project root containing pose_test.py.");
+            UnityEngine.Debug.LogError("[TRACKER] Could not locate project root containing pose_test.py.");
             return;
         }
 
         resolvedScriptPath = Path.Combine(projectRoot, scriptName);
         if (!File.Exists(resolvedScriptPath))
         {
-            UnityEngine.Debug.LogError($"[PythonPoseLauncher] Python script not found: {resolvedScriptPath}");
-            return;
-        }
-
-        if (pythonProcess != null && !pythonProcess.HasExited)
-        {
-            UnityEngine.Debug.Log($"[PythonPoseLauncher] Python process already running: {pythonProcess.ProcessName} (PID {pythonProcess.Id})");
+            UnityEngine.Debug.LogError($"[TRACKER] Python script not found: {resolvedScriptPath}");
             return;
         }
 
         resolvedPythonPath = ResolvePythonExecutable();
         if (string.IsNullOrEmpty(resolvedPythonPath))
         {
-            UnityEngine.Debug.LogError("[PythonPoseLauncher] Failed to resolve a valid Python executable.");
+            UnityEngine.Debug.LogError("[TRACKER] Failed to resolve a valid Python executable.");
             return;
         }
 
-        UnityEngine.Debug.Log($"[PythonPoseLauncher] Python executable: {resolvedPythonPath}");
-        UnityEngine.Debug.Log($"[PythonPoseLauncher] pose_test.py path: {resolvedScriptPath}");
+        UnityEngine.Debug.Log($"[TRACKER] Running in Editor mode");
+        UnityEngine.Debug.Log($"[TRACKER] Platform: {Application.platform}");
+        UnityEngine.Debug.Log($"[TRACKER] Python executable: {resolvedPythonPath}");
+        UnityEngine.Debug.Log($"[TRACKER] Script path: {resolvedScriptPath}");
 
         try
         {
@@ -105,7 +122,7 @@ public class PythonPoseLauncher : MonoBehaviour
             pythonProcess = Process.Start(startInfo);
             if (pythonProcess == null)
             {
-                UnityEngine.Debug.LogError("[PythonPoseLauncher] Process.Start returned null.");
+                UnityEngine.Debug.LogError("[TRACKER] Process.Start returned null.");
                 return;
             }
 
@@ -116,24 +133,24 @@ public class PythonPoseLauncher : MonoBehaviour
             pythonProcess.BeginOutputReadLine();
             pythonProcess.BeginErrorReadLine();
 
-            UnityEngine.Debug.Log($"[PythonPoseLauncher] MediaPipe tracking started. UDP port: {udpPort}. PID: {pythonProcess.Id}");
+            UnityEngine.Debug.Log($"[TRACKER] Tracker started. UDP port: {udpPort}. PID: {pythonProcess.Id}");
         }
         catch (Exception exception)
         {
-            UnityEngine.Debug.LogError($"[PythonPoseLauncher] Could not start Python pose tracking: {exception.Message}");
+            UnityEngine.Debug.LogError($"[TRACKER] Could not start Python pose tracking: {exception.Message}");
         }
     }
 
     private void HandlePythonOutput(object sender, DataReceivedEventArgs eventArgs)
     {
         if (!string.IsNullOrEmpty(eventArgs.Data))
-            UnityEngine.Debug.Log($"[PythonPoseLauncher] stdout: {eventArgs.Data}");
+            UnityEngine.Debug.Log($"[TRACKER] stdout: {eventArgs.Data}");
     }
 
     private void HandlePythonError(object sender, DataReceivedEventArgs eventArgs)
     {
         if (!string.IsNullOrEmpty(eventArgs.Data))
-            UnityEngine.Debug.LogError($"[PythonPoseLauncher] stderr: {eventArgs.Data}");
+            UnityEngine.Debug.LogError($"[TRACKER] stderr: {eventArgs.Data}");
     }
 
     private void HandlePythonExit(object sender, EventArgs eventArgs)
@@ -142,7 +159,44 @@ public class PythonPoseLauncher : MonoBehaviour
             return;
 
         int exitCode = pythonProcess.ExitCode;
-        UnityEngine.Debug.LogWarning($"[PythonPoseLauncher] Python tracking process exited with code {exitCode}.");
+        UnityEngine.Debug.LogWarning($"[TRACKER] Python tracking process exited with code {exitCode}.");
+    }
+
+    private void CleanupStaleTrackerProcesses()
+    {
+        try
+        {
+            string command = Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.WindowsPlayer
+                ? "powershell -NoProfile -Command \"Get-CimInstance Win32_Process | Where-Object { $_.Name -match 'python' -or $_.Name -match 'py' } | ForEach-Object { $p = $_; $cmd = (Get-CimInstance Win32_Process -Filter \"ProcessId = $($p.ProcessId)\").CommandLine; if ($cmd -match 'pose_test.py') { Stop-Process -Id $p.ProcessId -Force } }\""
+                : "bash -lc 'pgrep -af \"pose_test.py\" | awk \"{print $1}\" | xargs -r kill -9'";
+
+            using (Process cleanup = Process.Start(new ProcessStartInfo
+            {
+                FileName = Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.WindowsPlayer ? "cmd.exe" : "/bin/bash",
+                Arguments = Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.WindowsPlayer ? "/C " + command : "-lc \"" + command + "\"",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            }))
+            {
+                if (cleanup == null)
+                    return;
+
+                string stdout = cleanup.StandardOutput.ReadToEnd();
+                string stderr = cleanup.StandardError.ReadToEnd();
+                cleanup.WaitForExit();
+
+                if (!string.IsNullOrEmpty(stdout))
+                    UnityEngine.Debug.Log($"[TRACKER] Stale tracker cleanup: {stdout.Trim()}");
+                if (!string.IsNullOrEmpty(stderr))
+                    UnityEngine.Debug.LogWarning($"[TRACKER] Stale tracker cleanup warning: {stderr.Trim()}");
+            }
+        }
+        catch (Exception exception)
+        {
+            UnityEngine.Debug.LogWarning($"[TRACKER] Could not clean stale tracker processes: {exception.Message}");
+        }
     }
 
     private string ResolvePythonExecutable()
@@ -350,6 +404,114 @@ public class PythonPoseLauncher : MonoBehaviour
             UnityEngine.Debug.LogError($"[PythonPoseLauncher] Command failed: {fileName} {arguments}. Error: {exception.Message}");
             return false;
         }
+    }
+
+    private string ResolveBundledTrackerPath()
+    {
+        string[] candidateRoots = GetCandidateBuildRoots();
+        foreach (string root in candidateRoots)
+        {
+            if (string.IsNullOrEmpty(root))
+                continue;
+
+            string[] candidatePaths = new[]
+            {
+                Path.Combine(root, "Tracking", "PoseTracker.exe"),
+                Path.Combine(root, "Tracking", "PoseTracker"),
+                Path.Combine(root, "Tracking", "PoseTracker.app", "Contents", "MacOS", "PoseTracker"),
+                Path.Combine(root, "Tracking", "PoseTracker.app"),
+                Path.Combine(root, "PoseTracker.exe"),
+                Path.Combine(root, "PoseTracker")
+            };
+
+            foreach (string candidate in candidatePaths)
+            {
+                if (File.Exists(candidate))
+                {
+                    UnityEngine.Debug.Log($"[TRACKER] Bundled tracker found: {candidate}");
+                    return candidate;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private void LaunchBundledTracker(string trackerPath)
+    {
+        UnityEngine.Debug.Log($"[TRACKER] Running in standalone build mode");
+        UnityEngine.Debug.Log($"[TRACKER] Platform: {Application.platform}");
+        UnityEngine.Debug.Log($"[TRACKER] Tracker path: {trackerPath}");
+
+        try
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = trackerPath,
+                WorkingDirectory = Path.GetDirectoryName(trackerPath),
+                UseShellExecute = true,
+                CreateNoWindow = true
+            };
+
+            pythonProcess = Process.Start(startInfo);
+            if (pythonProcess == null)
+            {
+                UnityEngine.Debug.LogError("[TRACKER] Bundled tracker start returned null.");
+                return;
+            }
+
+            UnityEngine.Debug.Log($"[TRACKER] Tracker started. PID: {pythonProcess.Id}");
+        }
+        catch (Exception exception)
+        {
+            UnityEngine.Debug.LogError($"[TRACKER] Failed to launch bundled tracker: {exception.Message}");
+        }
+    }
+
+    private string[] GetCandidateBuildRoots()
+    {
+        var roots = new System.Collections.Generic.List<string>();
+
+        string dataPath = Application.dataPath;
+        if (!string.IsNullOrEmpty(dataPath))
+            roots.Add(dataPath);
+
+        string appDirectory = AppContext.BaseDirectory;
+        if (!string.IsNullOrEmpty(appDirectory))
+            roots.Add(appDirectory);
+
+        string dataParent = Path.GetDirectoryName(dataPath);
+        if (!string.IsNullOrEmpty(dataParent))
+            roots.Add(dataParent);
+
+        string appParent = Path.GetDirectoryName(appDirectory);
+        if (!string.IsNullOrEmpty(appParent))
+            roots.Add(appParent);
+
+        string currentDirectory = Directory.GetCurrentDirectory();
+        if (!string.IsNullOrEmpty(currentDirectory))
+            roots.Add(currentDirectory);
+
+        for (int i = 0; i < roots.Count; i++)
+        {
+            string currentRoot = roots[i];
+            for (int depth = 0; depth < 8; depth++)
+            {
+                if (Directory.Exists(Path.Combine(currentRoot, "Tracking")))
+                {
+                    roots.Add(currentRoot);
+                    break;
+                }
+
+                string parent = Directory.GetParent(currentRoot)?.FullName;
+                if (string.IsNullOrEmpty(parent) || parent == currentRoot)
+                    break;
+
+                currentRoot = parent;
+            }
+        }
+
+        return roots.ToArray();
     }
 
     private string FindProjectRoot()

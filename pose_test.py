@@ -40,62 +40,88 @@ def encode_landmarks(landmarks):
     return ",".join(values).encode("utf-8")
 
 
-def try_open_camera(index, backend):
+def try_open_camera(index, backend, backend_name):
     camera = cv2.VideoCapture(index, backend)
-    if not camera.isOpened():
-        camera.release()
+    if camera is None or not camera.isOpened():
         return None
 
     camera.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
     camera.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
     camera.set(cv2.CAP_PROP_FPS, TARGET_FPS)
 
-    # Do a quick read to confirm the camera is actually delivering frames.
-    success, _ = camera.read()
-    if not success:
+    if not camera.grab():
         camera.release()
         return None
 
-    print(f"Camera opened using index {index} and backend {backend}.", flush=True)
+    success, frame = camera.retrieve()
+    if not success or frame is None:
+        camera.release()
+        return None
+
+    print(f"Camera opened using index {index} with backend {backend_name}.", flush=True)
     return camera
 
 
-def open_camera():
+def get_camera_backends():
+    def add_if_supported(name, value):
+        if value is not None and hasattr(cv2, value):
+            backends.append((name, getattr(cv2, value)))
+
     backends = []
     if sys.platform == "darwin":
-        backends.extend([
-            ("AVFoundation", cv2.CAP_AVFOUNDATION),
-            ("Default", cv2.CAP_ANY),
-        ])
+        add_if_supported("AVFoundation", "CAP_AVFOUNDATION")
+        add_if_supported("QuickTime", "CAP_QT")
+        if hasattr(cv2, "CAP_ANY"):
+            backends.append(("Default", cv2.CAP_ANY))
     elif sys.platform.startswith("win"):
-        backends.extend([
-            ("DirectShow", cv2.CAP_DSHOW),
-            ("Media Foundation", cv2.CAP_MSMF),
-            ("Default", cv2.CAP_ANY),
-        ])
+        add_if_supported("DirectShow", "CAP_DSHOW")
+        add_if_supported("Media Foundation", "CAP_MSMF")
+        if hasattr(cv2, "CAP_ANY"):
+            backends.append(("Default", cv2.CAP_ANY))
     else:
-        backends.extend([
-            ("V4L2", cv2.CAP_V4L2),
-            ("Default", cv2.CAP_ANY),
-        ])
+        add_if_supported("V4L2", "CAP_V4L2")
+        add_if_supported("GStreamer", "CAP_GSTREAMER")
+        if hasattr(cv2, "CAP_ANY"):
+            backends.append(("Default", cv2.CAP_ANY))
 
-    for backend_name, backend in backends:
-        for index in range(0, 10):
-            camera = try_open_camera(index, backend)
+    if not backends:
+        backends.append(("Default", cv2.CAP_ANY if hasattr(cv2, "CAP_ANY") else 0))
+
+    return backends
+
+
+def open_camera():
+    for backend_name, backend in get_camera_backends():
+        for index in range(0, 12):
+            camera = try_open_camera(index, backend, backend_name)
             if camera is not None:
                 return camera
 
-        # Some cameras require the default backend on index 0 without a backend.
-        fallback = cv2.VideoCapture(0)
-        if fallback.isOpened():
-            fallback.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
-            fallback.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
-            fallback.set(cv2.CAP_PROP_FPS, TARGET_FPS)
-            success, _ = fallback.read()
-            if success:
-                print(f"Camera opened using default backend fallback with backend {backend_name}.", flush=True)
-                return fallback
-            fallback.release()
+        # Some devices only work if opened without a backend hint.
+        default_camera = cv2.VideoCapture(0)
+        if default_camera is not None and default_camera.isOpened():
+            default_camera.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+            default_camera.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+            default_camera.set(cv2.CAP_PROP_FPS, TARGET_FPS)
+            if default_camera.grab():
+                success, frame = default_camera.retrieve()
+                if success and frame is not None:
+                    print(f"Camera opened using default fallback with backend {backend_name}.", flush=True)
+                    return default_camera
+            default_camera.release()
+
+    for index in range(0, 12):
+        camera = cv2.VideoCapture(index)
+        if camera is not None and camera.isOpened():
+            camera.set(cv2.CAP_PROP_FRAME_WIDTH, FRAME_WIDTH)
+            camera.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
+            camera.set(cv2.CAP_PROP_FPS, TARGET_FPS)
+            if camera.grab():
+                success, frame = camera.retrieve()
+                if success and frame is not None:
+                    print(f"Camera opened using plain index {index} fallback.", flush=True)
+                    return camera
+            camera.release()
 
     print(
         "Unable to open any camera. Please check that a webcam is connected and that "
