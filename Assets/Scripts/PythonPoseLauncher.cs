@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Diagnostics;
 using System.IO;
 using UnityEngine;
@@ -8,10 +9,24 @@ public class PythonPoseLauncher : MonoBehaviour
     [Header("Python tracking")]
     public string scriptName = "pose_test.py";
     public int udpPort = 5052;
+    public bool autoStartOnPlay = true;
 
     private static PythonPoseLauncher instance;
     private Process pythonProcess;
     private string projectRoot;
+    private string resolvedScriptPath;
+    private string resolvedPythonPath;
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void Bootstrap()
+    {
+        if (FindFirstObjectByType<PythonPoseLauncher>() != null)
+            return;
+
+        GameObject launcher = new GameObject("PythonPoseLauncher");
+        launcher.AddComponent<PythonPoseLauncher>();
+        DontDestroyOnLoad(launcher);
+    }
 
     private void Awake()
     {
@@ -27,152 +42,204 @@ public class PythonPoseLauncher : MonoBehaviour
 
     private void Start()
     {
-        projectRoot = FindProjectRoot();
+        if (autoStartOnPlay)
+        {
+            StartCoroutine(DelayedStart());
+        }
+    }
+
+    private IEnumerator DelayedStart()
+    {
+        yield return null;
         StartPoseTracking();
     }
 
-    private void StartPoseTracking()
+    public void StartPoseTracking()
     {
+        if (!autoStartOnPlay && !Application.isPlaying)
+            return;
+
+        projectRoot = FindProjectRoot();
         if (string.IsNullOrEmpty(projectRoot))
         {
-            UnityEngine.Debug.LogError("Could not find the project folder containing pose_test.py.");
+            UnityEngine.Debug.LogError("[PythonPoseLauncher] Could not locate project root containing pose_test.py.");
             return;
         }
 
-        string scriptPath = Path.Combine(projectRoot, scriptName);
-        if (!File.Exists(scriptPath))
+        resolvedScriptPath = Path.Combine(projectRoot, scriptName);
+        if (!File.Exists(resolvedScriptPath))
         {
-            UnityEngine.Debug.LogError($"Python pose script was not found: {scriptPath}");
+            UnityEngine.Debug.LogError($"[PythonPoseLauncher] Python script not found: {resolvedScriptPath}");
             return;
         }
 
         if (pythonProcess != null && !pythonProcess.HasExited)
+        {
+            UnityEngine.Debug.Log($"[PythonPoseLauncher] Python process already running: {pythonProcess.ProcessName} (PID {pythonProcess.Id})");
             return;
+        }
 
-        string pythonPath;
-        if (Application.platform == RuntimePlatform.WindowsPlayer ||
-            Application.platform == RuntimePlatform.WindowsEditor)
+        resolvedPythonPath = ResolvePythonExecutable();
+        if (string.IsNullOrEmpty(resolvedPythonPath))
         {
-            pythonPath = GetWindowsPythonPath();
-            if (string.IsNullOrEmpty(pythonPath))
-                return;
+            UnityEngine.Debug.LogError("[PythonPoseLauncher] Failed to resolve a valid Python executable.");
+            return;
         }
-        else
-        {
-            pythonPath = GetMacPythonPath();
-            if (string.IsNullOrEmpty(pythonPath))
-                return;
-        }
+
+        UnityEngine.Debug.Log($"[PythonPoseLauncher] Python executable: {resolvedPythonPath}");
+        UnityEngine.Debug.Log($"[PythonPoseLauncher] pose_test.py path: {resolvedScriptPath}");
 
         try
         {
-            var startInfo = new ProcessStartInfo
+            ProcessStartInfo startInfo = new ProcessStartInfo
             {
-                FileName = pythonPath,
-                Arguments = Quote(scriptPath),
+                FileName = resolvedPythonPath,
+                Arguments = Quote(resolvedScriptPath),
                 WorkingDirectory = projectRoot,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                RedirectStandardOutput = false,
+                RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
 
             pythonProcess = Process.Start(startInfo);
+            if (pythonProcess == null)
+            {
+                UnityEngine.Debug.LogError("[PythonPoseLauncher] Process.Start returned null.");
+                return;
+            }
+
             pythonProcess.EnableRaisingEvents = true;
+            pythonProcess.OutputDataReceived += HandlePythonOutput;
             pythonProcess.ErrorDataReceived += HandlePythonError;
             pythonProcess.Exited += HandlePythonExit;
+            pythonProcess.BeginOutputReadLine();
             pythonProcess.BeginErrorReadLine();
-            UnityEngine.Debug.Log($"Started MediaPipe tracking on UDP port {udpPort}.");
+
+            UnityEngine.Debug.Log($"[PythonPoseLauncher] MediaPipe tracking started. UDP port: {udpPort}. PID: {pythonProcess.Id}");
         }
         catch (Exception exception)
         {
-            UnityEngine.Debug.LogError($"Could not start Python pose tracking: {exception.Message}");
+            UnityEngine.Debug.LogError($"[PythonPoseLauncher] Could not start Python pose tracking: {exception.Message}");
         }
+    }
+
+    private void HandlePythonOutput(object sender, DataReceivedEventArgs eventArgs)
+    {
+        if (!string.IsNullOrEmpty(eventArgs.Data))
+            UnityEngine.Debug.Log($"[PythonPoseLauncher] stdout: {eventArgs.Data}");
     }
 
     private void HandlePythonError(object sender, DataReceivedEventArgs eventArgs)
     {
         if (!string.IsNullOrEmpty(eventArgs.Data))
-            UnityEngine.Debug.LogError($"Python tracking: {eventArgs.Data}");
+            UnityEngine.Debug.LogError($"[PythonPoseLauncher] stderr: {eventArgs.Data}");
     }
 
     private void HandlePythonExit(object sender, EventArgs eventArgs)
     {
-        if (pythonProcess != null && pythonProcess.ExitCode != 0)
-            UnityEngine.Debug.LogError($"Python tracking stopped with exit code {pythonProcess.ExitCode}.");
+        if (pythonProcess == null)
+            return;
+
+        int exitCode = pythonProcess.ExitCode;
+        UnityEngine.Debug.LogWarning($"[PythonPoseLauncher] Python tracking process exited with code {exitCode}.");
     }
 
-    private string GetWindowsPythonPath()
+    private string ResolvePythonExecutable()
     {
-        string venvPath = Path.Combine(projectRoot, "venv_windows", "Scripts", "python.exe");
-        if (File.Exists(venvPath) && CanRunProcess(venvPath, "-m pip --version"))
-            return venvPath;
+        if (Application.platform == RuntimePlatform.WindowsEditor || Application.platform == RuntimePlatform.WindowsPlayer)
+            return ResolveWindowsPythonExecutable();
 
-        string pythonLauncher = FindWindowsPythonLauncher();
-        string pythonExecutable = FindWindowsPythonExecutable();
-        if (string.IsNullOrEmpty(pythonLauncher) && string.IsNullOrEmpty(pythonExecutable))
-        {
-            UnityEngine.Debug.LogError("Python 3.11 was not found. Install Python 3.11 and try again.");
-            return null;
-        }
-
-        string venvArguments = "-m venv --clear " + Quote(Path.Combine(projectRoot, "venv_windows"));
-        if (!string.IsNullOrEmpty(pythonLauncher))
-            venvArguments = "-3.11 " + venvArguments;
-
-        if (!RunProcess(
-                string.IsNullOrEmpty(pythonLauncher) ? pythonExecutable : pythonLauncher,
-                venvArguments))
-            return null;
-
-        string createdPythonPath = Path.Combine(projectRoot, "venv_windows", "Scripts", "python.exe");
-        string requirementsPath = Path.Combine(projectRoot, "requirements_windows.txt");
-        if (!File.Exists(createdPythonPath) || !File.Exists(requirementsPath))
-        {
-            UnityEngine.Debug.LogError("Windows Python environment setup files are missing.");
-            return null;
-        }
-
-        if (!RunProcess(
-            createdPythonPath,
-            "-m pip install --trusted-host pypi.org " +
-            "--trusted-host files.pythonhosted.org -r " + Quote(requirementsPath)))
-            return null;
-
-        return createdPythonPath;
+        return ResolveMacPythonExecutable();
     }
 
-    private string GetMacPythonPath()
+    private string ResolveMacPythonExecutable()
     {
-        string venvPath = Path.Combine(projectRoot, "venv", "bin", "python3.11");
-        if (File.Exists(venvPath) && CanRunProcess(venvPath, "-m pip --version"))
-            return venvPath;
+        string venvPython = Path.Combine(projectRoot, "venv", "bin", "python");
+        if (File.Exists(venvPython) && CanRunPython(venvPython, "--version"))
+            return venvPython;
+
+        string venvPython311 = Path.Combine(projectRoot, "venv", "bin", "python3.11");
+        if (File.Exists(venvPython311) && CanRunPython(venvPython311, "--version"))
+            return venvPython311;
 
         string systemPython = FindMacPython311();
         if (string.IsNullOrEmpty(systemPython))
         {
-            UnityEngine.Debug.LogError("Python 3.11 was not found on macOS.");
+            UnityEngine.Debug.LogError("[PythonPoseLauncher] Python 3.11 was not found on macOS. Install it or create the project venv.");
             return null;
         }
 
         string venvDirectory = Path.Combine(projectRoot, "venv");
-        if (!RunProcess(systemPython, "-m venv --clear " + Quote(venvDirectory)))
-            return null;
-
-        string requirementsPath = Path.Combine(projectRoot, "requirements.txt");
-        if (!File.Exists(venvPath) || !File.Exists(requirementsPath))
+        if (!RunProcess(systemPython, "-m venv " + Quote(venvDirectory)))
         {
-            UnityEngine.Debug.LogError("macOS Python environment setup files are missing.");
+            UnityEngine.Debug.LogError("[PythonPoseLauncher] Failed to create the macOS project venv.");
             return null;
         }
 
-        if (!RunProcess(
-            venvPath,
-            "-m pip install --trusted-host pypi.org " +
-            "--trusted-host files.pythonhosted.org -r " + Quote(requirementsPath)))
-            return null;
+        string createdPython = Path.Combine(projectRoot, "venv", "bin", "python");
+        if (!File.Exists(createdPython))
+        {
+            createdPython = Path.Combine(projectRoot, "venv", "bin", "python3.11");
+        }
 
-        return venvPath;
+        if (!File.Exists(createdPython))
+        {
+            UnityEngine.Debug.LogError("[PythonPoseLauncher] macOS venv was created but python executable is missing.");
+            return null;
+        }
+
+        string requirementsPath = Path.Combine(projectRoot, "requirements.txt");
+        if (File.Exists(requirementsPath) && !RunProcess(createdPython, "-m pip install -r " + Quote(requirementsPath)))
+        {
+            UnityEngine.Debug.LogError("[PythonPoseLauncher] Failed to install macOS Python requirements.");
+            return null;
+        }
+
+        return createdPython;
+    }
+
+    private string ResolveWindowsPythonExecutable()
+    {
+        string venvPython = Path.Combine(projectRoot, "venv_windows", "Scripts", "python.exe");
+        if (File.Exists(venvPython) && CanRunPython(venvPython, "--version"))
+            return venvPython;
+
+        string pyLauncher = FindWindowsPythonLauncher();
+        string pythonExecutable = FindWindowsPythonExecutable();
+
+        if (string.IsNullOrEmpty(pyLauncher) && string.IsNullOrEmpty(pythonExecutable))
+        {
+            UnityEngine.Debug.LogError("[PythonPoseLauncher] No valid Windows Python 3.11 executable was found. Install Python 3.11 and try again.");
+            return null;
+        }
+
+        string pythonForVenv = !string.IsNullOrEmpty(pyLauncher) ? pyLauncher : pythonExecutable;
+        string venvCreateCommand = "-m venv " + Quote(Path.Combine(projectRoot, "venv_windows"));
+        if (!string.IsNullOrEmpty(pyLauncher))
+            venvCreateCommand = "-3.11 " + venvCreateCommand;
+
+        if (!RunProcess(pythonForVenv, venvCreateCommand))
+        {
+            UnityEngine.Debug.LogError("[PythonPoseLauncher] Failed to create the Windows project venv.");
+            return null;
+        }
+
+        string createdPython = Path.Combine(projectRoot, "venv_windows", "Scripts", "python.exe");
+        if (!File.Exists(createdPython))
+        {
+            UnityEngine.Debug.LogError("[PythonPoseLauncher] Windows venv was created but python.exe is missing.");
+            return null;
+        }
+
+        string requirementsPath = Path.Combine(projectRoot, "requirements_windows.txt");
+        if (File.Exists(requirementsPath) && !RunProcess(createdPython, "-m pip install -r " + Quote(requirementsPath)))
+        {
+            UnityEngine.Debug.LogError("[PythonPoseLauncher] Failed to install Windows Python requirements.");
+            return null;
+        }
+
+        return createdPython;
     }
 
     private string FindMacPython311()
@@ -181,12 +248,13 @@ public class PythonPoseLauncher : MonoBehaviour
         {
             "python3.11",
             "/opt/homebrew/bin/python3.11",
-            "/usr/local/bin/python3.11"
+            "/usr/local/bin/python3.11",
+            "/usr/bin/python3"
         };
 
         foreach (string candidate in candidates)
         {
-            if (CanRunPython311(candidate, "--version"))
+            if (CanRunPython(candidate, "--version"))
                 return candidate;
         }
 
@@ -195,7 +263,7 @@ public class PythonPoseLauncher : MonoBehaviour
 
     private string FindWindowsPythonLauncher()
     {
-        if (CanRunPython311("py.exe", "-3.11 --version"))
+        if (CanRunPython("py.exe", "-3.11 --version"))
             return "py.exe";
 
         return null;
@@ -206,30 +274,22 @@ public class PythonPoseLauncher : MonoBehaviour
         string[] candidates =
         {
             "python.exe",
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Programs", "Python", "Python311", "python.exe"),
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Python", "Python311", "python.exe"),
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),
-                "Python311", "python.exe"),
-            Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86),
-                "Python311", "python.exe")
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Python", "Python311", "python.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Python", "Python311", "python.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Python311", "python.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Python311", "python.exe")
         };
 
         foreach (string candidate in candidates)
         {
-            if (CanRunPython311(candidate, "--version"))
+            if (CanRunPython(candidate, "--version"))
                 return candidate;
         }
 
         return null;
     }
 
-    private bool CanRunPython311(string fileName, string arguments)
+    private bool CanRunPython(string fileName, string arguments)
     {
         try
         {
@@ -246,34 +306,7 @@ public class PythonPoseLauncher : MonoBehaviour
                 string output = process.StandardOutput.ReadToEnd();
                 string error = process.StandardError.ReadToEnd();
                 process.WaitForExit();
-                return process.ExitCode == 0 &&
-                    (output + error).Contains("Python 3.11");
-            }
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private bool CanRunProcess(string fileName, string arguments)
-    {
-        try
-        {
-            using (Process process = Process.Start(new ProcessStartInfo
-            {
-                FileName = fileName,
-                Arguments = arguments,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            }))
-            {
-                process.StandardOutput.ReadToEnd();
-                process.StandardError.ReadToEnd();
-                process.WaitForExit();
-                return process.ExitCode == 0;
+                return process.ExitCode == 0 && (output + error).Contains("Python");
             }
         }
         catch
@@ -292,35 +325,73 @@ public class PythonPoseLauncher : MonoBehaviour
                 Arguments = arguments,
                 WorkingDirectory = projectRoot,
                 UseShellExecute = false,
-                CreateNoWindow = true
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
             }))
             {
+                string stdout = process.StandardOutput.ReadToEnd();
+                string stderr = process.StandardError.ReadToEnd();
                 process.WaitForExit();
+
+                if (!string.IsNullOrEmpty(stdout))
+                    UnityEngine.Debug.Log($"[PythonPoseLauncher] setup stdout: {stdout.Trim()}");
+                if (!string.IsNullOrEmpty(stderr))
+                    UnityEngine.Debug.LogError($"[PythonPoseLauncher] setup stderr: {stderr.Trim()}");
+
                 if (process.ExitCode != 0)
-                    UnityEngine.Debug.LogError($"Python setup command failed with exit code {process.ExitCode}.");
+                    UnityEngine.Debug.LogError($"[PythonPoseLauncher] Command failed: {fileName} {arguments} (exit {process.ExitCode})");
+
                 return process.ExitCode == 0;
             }
         }
         catch (Exception exception)
         {
-            UnityEngine.Debug.LogError($"Python setup command failed: {exception.Message}");
+            UnityEngine.Debug.LogError($"[PythonPoseLauncher] Command failed: {fileName} {arguments}. Error: {exception.Message}");
             return false;
         }
     }
+
     private string FindProjectRoot()
     {
-        string[] candidates =
+        string[] candidateRoots = new[]
         {
-            Directory.GetParent(Application.dataPath)?.FullName,
-            Directory.GetParent(Application.dataPath)?.Parent?.FullName,
-            Directory.GetCurrentDirectory()
+            Application.dataPath,
+            Path.GetDirectoryName(Application.dataPath),
+            Directory.GetCurrentDirectory(),
+            AppContext.BaseDirectory,
+            Path.GetDirectoryName(AppContext.BaseDirectory)
         };
 
-        foreach (string candidate in candidates)
+        foreach (string root in candidateRoots)
         {
-            if (!string.IsNullOrEmpty(candidate) && File.Exists(Path.Combine(candidate, scriptName)))
-                return candidate;
+            if (string.IsNullOrEmpty(root))
+                continue;
+
+            try
+            {
+                string candidate = root;
+                for (int i = 0; i < 8; i++)
+                {
+                    if (File.Exists(Path.Combine(candidate, scriptName)))
+                        return candidate;
+                    if (Directory.Exists(Path.Combine(candidate, "Assets")) && File.Exists(Path.Combine(candidate, "pose_test.py")))
+                        return candidate;
+
+                    string parent = Directory.GetParent(candidate)?.FullName;
+                    if (string.IsNullOrEmpty(parent) || parent == candidate)
+                        break;
+                    candidate = parent;
+                }
+            }
+            catch
+            {
+                // Ignore invalid directories while walking upward.
+            }
         }
+
+        if (Directory.Exists("Assets") && File.Exists(Path.Combine(".", scriptName)))
+            return Directory.GetCurrentDirectory();
 
         return null;
     }
@@ -351,8 +422,9 @@ public class PythonPoseLauncher : MonoBehaviour
             if (!pythonProcess.HasExited)
                 pythonProcess.Kill();
         }
-        catch (InvalidOperationException)
+        catch (Exception exception)
         {
+            UnityEngine.Debug.LogWarning($"[PythonPoseLauncher] Could not kill Python process cleanly: {exception.Message}");
         }
         finally
         {

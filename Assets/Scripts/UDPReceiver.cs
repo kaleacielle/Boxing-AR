@@ -7,102 +7,179 @@ using System.Text;
 public class UDPReceiver : MonoBehaviour
 {
     public static string latestPose = "";
-
     public static bool bodyDetected = false;
 
-    // Head
     public static Vector2 head;
-
-    // Upper Body
     public static Vector2 leftShoulder;
     public static Vector2 rightShoulder;
-
     public static Vector2 leftElbow;
     public static Vector2 rightElbow;
-
     public static Vector2 leftWrist;
     public static Vector2 rightWrist;
 
+    public int listenPort = 5052;
+    public bool logVerbose = true;
+
+    private static UDPReceiver instance;
     private UdpClient client;
+    private bool isListening;
 
-    void Start()
+    private void Awake()
     {
-        client = new UdpClient(5052);
+        if (instance != null && instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
 
-        Debug.Log("Listening on port 5052...");
-
-        client.BeginReceive(ReceiveCallback, null);
+        instance = this;
+        DontDestroyOnLoad(gameObject);
     }
 
-    void ReceiveCallback(IAsyncResult ar)
+    private void Start()
     {
+        StartListening();
+    }
+
+    public void StartListening()
+    {
+        if (isListening)
+            return;
+
         try
         {
-            IPEndPoint ep = new IPEndPoint(IPAddress.Any, 5052);
+            client = new UdpClient(listenPort);
+            client.Client.ReceiveTimeout = 2000;
+            client.BeginReceive(ReceiveCallback, null);
+            isListening = true;
+            Debug.Log($"[UDPReceiver] Listening on UDP port {listenPort}.");
+        }
+        catch (SocketException socketException)
+        {
+            Debug.LogError($"[UDPReceiver] Could not bind UDP port {listenPort}: {socketException.Message}");
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError($"[UDPReceiver] UDP listening failed: {exception.Message}");
+        }
+    }
 
+    private void ReceiveCallback(IAsyncResult ar)
+    {
+        if (client == null || !isListening)
+            return;
+
+        try
+        {
+            IPEndPoint ep = new IPEndPoint(IPAddress.Any, listenPort);
             byte[] data = client.EndReceive(ar, ref ep);
 
-            string msg = Encoding.UTF8.GetString(data);
+            if (data == null || data.Length == 0)
+            {
+                latestPose = "";
+                bodyDetected = false;
+                client.BeginReceive(ReceiveCallback, null);
+                return;
+            }
 
+            string msg = Encoding.UTF8.GetString(data);
             latestPose = msg;
 
-            string[] values = msg.Split(',');
+            if (logVerbose)
+                Debug.Log($"[UDPReceiver] Pose packet received: {msg}");
 
-            // Head + Shoulders + Elbows + Wrists
+            string[] values = msg.Split(',');
             if (values.Length == 14)
             {
-                head = new Vector2(
-                    float.Parse(values[0]),
-                    float.Parse(values[1])
-                );
+                float x1, y1, x2, y2, x3, y3, x4, y4, x5, y5, x6, y6, x7, y7;
+                if (TryParse(values[0], out x1) &&
+                    TryParse(values[1], out y1) &&
+                    TryParse(values[2], out x2) &&
+                    TryParse(values[3], out y2) &&
+                    TryParse(values[4], out x3) &&
+                    TryParse(values[5], out y3) &&
+                    TryParse(values[6], out x4) &&
+                    TryParse(values[7], out y4) &&
+                    TryParse(values[8], out x5) &&
+                    TryParse(values[9], out y5) &&
+                    TryParse(values[10], out x6) &&
+                    TryParse(values[11], out y6) &&
+                    TryParse(values[12], out x7) &&
+                    TryParse(values[13], out y7))
+                {
+                    head = new Vector2(x1, y1);
+                    leftShoulder = new Vector2(x2, y2);
+                    rightShoulder = new Vector2(x3, y3);
+                    leftElbow = new Vector2(x4, y4);
+                    rightElbow = new Vector2(x5, y5);
+                    leftWrist = new Vector2(x6, y6);
+                    rightWrist = new Vector2(x7, y7);
 
-                leftShoulder = new Vector2(
-                    float.Parse(values[2]),
-                    float.Parse(values[3])
-                );
-
-                rightShoulder = new Vector2(
-                    float.Parse(values[4]),
-                    float.Parse(values[5])
-                );
-
-                leftElbow = new Vector2(
-                    float.Parse(values[6]),
-                    float.Parse(values[7])
-                );
-
-                rightElbow = new Vector2(
-                    float.Parse(values[8]),
-                    float.Parse(values[9])
-                );
-
-                leftWrist = new Vector2(
-                    float.Parse(values[10]),
-                    float.Parse(values[11])
-                );
-
-                rightWrist = new Vector2(
-                    float.Parse(values[12]),
-                    float.Parse(values[13])
-                );
-
-                bodyDetected = true;
+                    bodyDetected = true;
+                    Debug.Log("[UDPReceiver] Body pose valid and parsed successfully.");
+                }
+                else
+                {
+                    bodyDetected = false;
+                    Debug.LogWarning("[UDPReceiver] Pose packet was malformed and could not be parsed.");
+                }
             }
             else
             {
                 bodyDetected = false;
+                Debug.LogWarning($"[UDPReceiver] Unexpected pose packet length: {values.Length}");
             }
 
             client.BeginReceive(ReceiveCallback, null);
         }
-        catch (Exception e)
+        catch (ObjectDisposedException)
         {
-            Debug.LogError(e.Message);
+            Debug.LogWarning("[UDPReceiver] UDP socket closed while receiving.");
+        }
+        catch (SocketException socketException)
+        {
+            Debug.LogWarning($"[UDPReceiver] UDP receive timeout/socket issue: {socketException.Message}");
+            if (client != null)
+                client.BeginReceive(ReceiveCallback, null);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError($"[UDPReceiver] Receive callback failed: {exception.Message}");
         }
     }
 
-    void OnApplicationQuit()
+    private bool TryParse(string value, out float parsed)
     {
-        client?.Close();
+        return float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out parsed);
+    }
+
+    private void OnApplicationQuit()
+    {
+        StopListening();
+    }
+
+    private void OnDestroy()
+    {
+        StopListening();
+    }
+
+    private void StopListening()
+    {
+        isListening = false;
+        if (client != null)
+        {
+            try
+            {
+                client.Close();
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"[UDPReceiver] Could not close UDP socket cleanly: {exception.Message}");
+            }
+            finally
+            {
+                client = null;
+            }
+        }
     }
 }
