@@ -50,6 +50,12 @@ public class BuildTrackingPackaging : IPostprocessBuildWithReport
             return;
         }
 
+        if (!EnsurePyInstallerInstalled(pythonPath))
+        {
+            UnityEngine.Debug.LogError("[TRACKER-BUILD] PyInstaller is not available and could not be installed automatically. Install it in the project Python environment and try again.");
+            return;
+        }
+
         string buildRoot = Path.GetDirectoryName(outputPath);
         if (string.IsNullOrEmpty(buildRoot))
             buildRoot = projectRoot;
@@ -187,16 +193,29 @@ public class BuildTrackingPackaging : IPostprocessBuildWithReport
                 if (process == null)
                     return false;
 
-                string output = process.StandardOutput.ReadToEnd();
-                string error = process.StandardError.ReadToEnd();
+                _ = process.StandardOutput.ReadToEnd();
+                _ = process.StandardError.ReadToEnd();
                 process.WaitForExit();
-                return process.ExitCode == 0 && (output + error).Contains("Python");
+                return process.ExitCode == 0;
             }
         }
         catch
         {
             return false;
         }
+    }
+
+    private static bool EnsurePyInstallerInstalled(string pythonPath)
+    {
+        if (CanRunPython(pythonPath, "-c \"import PyInstaller\""))
+            return true;
+
+        UnityEngine.Debug.Log("[TRACKER-BUILD] PyInstaller is missing. Installing it into the selected Python environment.");
+        bool installed = RunProcess(pythonPath, "-m pip install pyinstaller", GetProjectRoot());
+        if (!installed)
+            return false;
+
+        return CanRunPython(pythonPath, "-c \"import PyInstaller\"");
     }
 
     private static bool RunProcess(string fileName, string arguments, string workingDirectory)
