@@ -98,6 +98,7 @@ public class PoseComparisonManager : MonoBehaviour
     private bool hasInitialWristPositions;
 
     public bool IsExperienceActive => currentState == GameState.MatchingPose;
+    public float DisplayScore => GetDisplayScore();
 
     private void Start()
     {

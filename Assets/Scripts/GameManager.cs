@@ -32,9 +32,20 @@ public class GameManager : MonoBehaviour
     [Range(0.1f, 3f)]
     public float matchPoseDuration = 1f;
 
+    [Header("Coach Pose Reminder")]
+    [Tooltip("How often the coach repeats the required stance while the score remains low.")]
+    [Min(1f)]
+    public float coachReminderInterval = 5f;
+
+    [Tooltip("The coach repeats while the visible pose progress is below this percentage.")]
+    [Range(0f, 100f)]
+    public float coachReminderScoreThreshold = 50f;
+
     private const int totalLessons = 3;
 
     private bool isTransitioning = false;
+    private float coachReminderTimer;
+    private LessonState reminderLesson = LessonState.WaitingForPlayer;
 
     void Start()
     {
@@ -52,7 +63,10 @@ public class GameManager : MonoBehaviour
     {
         // Prevent pose detection while countdown is playing
         if (isTransitioning)
+        {
+            ResetCoachReminder();
             return;
+        }
 
         if (
             poseComparisonManager != null &&
@@ -60,8 +74,11 @@ public class GameManager : MonoBehaviour
         )
         {
             currentLesson = LessonState.WaitingForPlayer;
+            ResetCoachReminder();
             return;
         }
+
+        UpdateCoachReminder();
 
         switch (currentLesson)
         {
@@ -81,6 +98,63 @@ public class GameManager : MonoBehaviour
                 ComboPunchLesson();
                 break;
         }
+    }
+
+    private void UpdateCoachReminder()
+    {
+        bool hasRepeatableStance =
+            currentLesson == LessonState.Guard ||
+            currentLesson == LessonState.LeadJab ||
+            currentLesson == LessonState.ComboPunch;
+
+        if (!hasRepeatableStance || poseComparisonManager == null)
+        {
+            ResetCoachReminder();
+            return;
+        }
+
+        if (reminderLesson != currentLesson)
+        {
+            reminderLesson = currentLesson;
+            coachReminderTimer = 0f;
+        }
+
+        if (poseComparisonManager.DisplayScore >= coachReminderScoreThreshold)
+        {
+            coachReminderTimer = 0f;
+            return;
+        }
+
+        coachReminderTimer += Time.deltaTime;
+        if (coachReminderTimer < coachReminderInterval)
+            return;
+
+        coachReminderTimer = 0f;
+        ReplayRequiredStance();
+    }
+
+    private void ReplayRequiredStance()
+    {
+        switch (currentLesson)
+        {
+            case LessonState.Guard:
+                coach.PlayIdle();
+                break;
+
+            case LessonState.LeadJab:
+                coach.PlayLeadJab();
+                break;
+
+            case LessonState.ComboPunch:
+                coach.PlayComboPunch();
+                break;
+        }
+    }
+
+    private void ResetCoachReminder()
+    {
+        coachReminderTimer = 0f;
+        reminderLesson = LessonState.WaitingForPlayer;
     }
 
     // --------------------------------------------------
